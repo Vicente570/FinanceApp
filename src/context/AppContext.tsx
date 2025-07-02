@@ -109,8 +109,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isConverting, setIsConverting] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, user } = useAuth();
   const { saveAllAppData, loadAllAppData } = useSupabaseData();
+
+  // Resetear dataLoaded cuando cambia el usuario autenticado
+  useEffect(() => {
+    setDataLoaded(false);
+  }, [user?.id]);
 
   // Cargar datos cuando el usuario se autentica
   useEffect(() => {
