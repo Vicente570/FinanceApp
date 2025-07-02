@@ -42,27 +42,49 @@ export function useAuth() {
 
   // Utilidad para forzar carga de perfil con reintentos
   const fetchProfileWithRetry = async (userId: string, maxTries = 3, delayMs = 1000) => {
+    console.log(`[DEBUG] fetchProfileWithRetry iniciado para userId=${userId}`);
     let lastError = null;
+    
     for (let i = 0; i < maxTries; i++) {
-      const { data: profile, error } = await supabase
-        .from('user_profiles')
-        .select('*')
-        .eq('id', userId)
-        .single();
-      console.log(`[DEBUG] Intento ${i + 1} de cargar perfil para userId=${userId}:`, { profile, error });
-      if (profile) return { profile };
-      lastError = error;
+      console.log(`[DEBUG] Intento ${i + 1}/${maxTries} de cargar perfil`);
       
-      // Si es error 406 (no rows), no hay perfil, no seguir intentando
-      if (error && error.code === 'PGRST116') {
-        console.log('[DEBUG] Error 406 detectado - no hay perfil para este usuario');
-        return { profile: null, error };
-      }
-      
-      if (i < maxTries - 1) {
-        await new Promise(res => setTimeout(res, delayMs));
+      try {
+        const { data: profile, error } = await supabase
+          .from('user_profiles')
+          .select('*')
+          .eq('id', userId)
+          .single();
+        
+        console.log(`[DEBUG] Intento ${i + 1} de cargar perfil para userId=${userId}:`, { profile, error });
+        
+        if (profile) {
+          console.log('[DEBUG] Perfil encontrado, retornando');
+          return { profile };
+        }
+        
+        lastError = error;
+        
+        // Si es error 406 (no rows), no hay perfil, no seguir intentando
+        if (error && error.code === 'PGRST116') {
+          console.log('[DEBUG] Error 406 detectado - no hay perfil para este usuario');
+          return { profile: null, error };
+        }
+        
+        if (i < maxTries - 1) {
+          console.log(`[DEBUG] Esperando ${delayMs}ms antes del siguiente intento`);
+          await new Promise(res => setTimeout(res, delayMs));
+        }
+      } catch (error: any) {
+        console.error(`[DEBUG] Error en intento ${i + 1}:`, error);
+        lastError = error;
+        
+        if (i < maxTries - 1) {
+          console.log(`[DEBUG] Esperando ${delayMs}ms antes del siguiente intento`);
+          await new Promise(res => setTimeout(res, delayMs));
+        }
       }
     }
+    
     console.warn('[DEBUG] No se pudo cargar el perfil tras reintentos:', lastError);
     return { profile: null, error: lastError };
   };
@@ -132,16 +154,48 @@ export function useAuth() {
       if (!mounted) return;
       setAuthError(null);
       console.log('[DEBUG] Evento onAuthStateChange:', event, session);
+      
       if (event === 'SIGNED_OUT' || !session) {
         setAuthState({ user: null, profile: null, session: null, loading: false, needsProfileSetup: false });
         console.log('[DEBUG] Usuario deslogueado o sin sesión.');
       } else if (session?.user) {
+        console.log('[DEBUG] Usuario autenticado, estableciendo loading: true');
         setAuthState(prev => ({ ...prev, loading: true }));
-        const { profile, error } = await fetchProfileWithRetry(session.user.id);
         
-        // Si no hay perfil y es error 406, pero estamos en proceso de registro, no hacer logout
-        if (!profile && error && error.code === 'PGRST116') {
-          console.log('[DEBUG] Usuario sin perfil detectado durante registro, manteniendo sesión...');
+        try {
+          console.log('[DEBUG] Llamando fetchProfileWithRetry para userId:', session.user.id);
+          const { profile, error } = await fetchProfileWithRetry(session.user.id);
+          console.log('[DEBUG] Resultado de fetchProfileWithRetry:', { profile, error });
+          
+          // Si no hay perfil y es error 406, pero estamos en proceso de registro, no hacer logout
+          if (!profile && error && error.code === 'PGRST116') {
+            console.log('[DEBUG] Usuario sin perfil detectado durante registro, manteniendo sesión...');
+            setAuthState({
+              user: session.user,
+              profile: null,
+              session,
+              loading: false,
+              needsProfileSetup: true
+            });
+            return;
+          }
+          
+          console.log('[DEBUG] Estableciendo estado final con loading: false');
+          setAuthState({
+            user: session.user,
+            profile: profile || null,
+            session,
+            loading: false,
+            needsProfileSetup: !profile
+          });
+          console.log('[DEBUG] Estado tras onAuthStateChange:', {
+            user: session.user,
+            profile,
+            session
+          });
+        } catch (error: any) {
+          console.error('[DEBUG] Error inesperado en onAuthStateChange:', error);
+          // Asegurar que siempre se establezca loading: false
           setAuthState({
             user: session.user,
             profile: null,
@@ -149,21 +203,8 @@ export function useAuth() {
             loading: false,
             needsProfileSetup: true
           });
-          return;
+          setAuthError('Error cargando perfil: ' + error.message);
         }
-        
-        setAuthState({
-          user: session.user,
-          profile: profile || null,
-          session,
-          loading: false,
-          needsProfileSetup: !profile
-        });
-        console.log('[DEBUG] Estado tras onAuthStateChange:', {
-          user: session.user,
-          profile,
-          session
-        });
       }
     });
     return () => {
