@@ -49,13 +49,23 @@ export function useAuth() {
       console.log(`[DEBUG] Intento ${i + 1}/${maxTries} de cargar perfil`);
       
       try {
-        const { data: profile, error } = await supabase
+        console.log(`[DEBUG] Ejecutando consulta Supabase para intento ${i + 1}`);
+        
+        // Agregar timeout a la consulta
+        const timeoutPromise = new Promise((_, reject) => {
+          setTimeout(() => reject(new Error('Timeout en consulta Supabase')), 5000);
+        });
+        
+        const queryPromise = supabase
           .from('user_profiles')
           .select('*')
           .eq('id', userId)
           .single();
         
+        const { data: profile, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+        
         console.log(`[DEBUG] Intento ${i + 1} de cargar perfil para userId=${userId}:`, { profile, error });
+        console.log(`[DEBUG] Consulta completada para intento ${i + 1}`);
         
         if (profile) {
           console.log('[DEBUG] Perfil encontrado, retornando');
