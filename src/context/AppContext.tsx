@@ -123,7 +123,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Guardar automáticamente cuando cambien los datos importantes
   useEffect(() => {
     if (isAuthenticated && dataLoaded) {
+      console.log('🔄 Data changed, scheduling auto-save...');
       const timeoutId = setTimeout(() => {
+        console.log('💾 Executing auto-save...');
         saveData();
       }, 1000); // Guardar después de 1 segundo de inactividad
       
@@ -600,12 +602,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   };
 
   const saveData = async () => {
+    console.log('🔍 saveData called, isAuthenticated:', isAuthenticated);
     if (!isAuthenticated) {
       console.warn('User not authenticated, cannot save to Supabase');
       return;
     }
 
     try {
+      console.log('📊 Preparing data for save...');
       const appData = {
         accounts: state.accounts,
         budgets: state.budgets,
@@ -620,7 +624,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         language: state.language
       };
 
+      console.log('💾 Calling saveAllAppData...');
       const result = await saveAllAppData(appData);
+      console.log('📋 Save result:', result);
       
       // Mostrar notificación
       const notification = document.createElement('div');
