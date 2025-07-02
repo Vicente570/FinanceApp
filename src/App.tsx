@@ -1,8 +1,7 @@
 import React from 'react';
-import { useAuth } from './hooks/useAuth';
+import { useAuth, setProfileSuccessMessage } from './hooks/useAuth';
 import { AppProvider } from './context/AppContext';
 import { AuthForm } from './components/Auth/AuthForm';
-import { ProfileSetupForm } from './components/Auth/ProfileSetupForm';
 import { LoadingScreen } from './components/Auth/LoadingScreen';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
@@ -13,32 +12,43 @@ if (import.meta.env.DEV) {
   import('./utils/adminUtils');
 }
 
+console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
+console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY);
+
 function AppContent() {
-  const { user, profile, loading, needsProfileSetup } = useAuth();
+  const { user, profile, loading, signOut } = useAuth();
+  const [loggingOut, setLoggingOut] = React.useState(false);
+  const [isRegistering, setIsRegistering] = React.useState(false);
+
+  React.useEffect(() => {
+    // Solo hacer logout si el usuario no tiene perfil, no está en proceso de carga, y no está registrándose
+    if (user && !profile && !loading && !isRegistering) {
+      console.log('[DEBUG] Usuario sin perfil detectado en App, haciendo logout...');
+      setLoggingOut(true);
+      setProfileSuccessMessage('Tu cuenta fue creada exitosamente. Por favor, inicia sesión.');
+      signOut().finally(() => setLoggingOut(false));
+    }
+  }, [user, profile, loading, signOut, isRegistering]);
 
   console.log('🔍 App render state:', { 
     hasUser: !!user, 
     hasProfile: !!profile, 
-    loading, 
-    needsProfileSetup 
+    loading
   });
 
-  // Mostrar loading solo mientras se verifica auth
-  if (loading) {
+  if (loading || loggingOut) {
     console.log('⏳ Showing loading screen');
     return <LoadingScreen language="es" />;
   }
 
-  // No hay usuario - mostrar login
   if (!user) {
     console.log('🔐 No user, showing auth form');
-    return <AuthForm language="es" />;
+    return <AuthForm language="es" onRegisteringChange={setIsRegistering} />;
   }
 
-  // Usuario sin perfil - mostrar setup
-  if (needsProfileSetup || !profile) {
-    console.log('👤 User needs profile setup');
-    return <ProfileSetupForm language="es" />;
+  if (!profile) {
+    // Nunca mostrar mensaje de error, solo forzar logout
+    return null;
   }
 
   // Usuario completo - mostrar app

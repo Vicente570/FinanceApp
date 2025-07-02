@@ -1,5 +1,6 @@
 import React from 'react';
 import { useApp } from '../../context/AppContext';
+import { useAuth } from '../../hooks/useAuth';
 import { ArrowLeft, Home } from 'lucide-react';
 
 const sectionNames = {
@@ -34,6 +35,7 @@ const subsectionNames = {
 
 export function Header() {
   const { state, navigate } = useApp();
+  const { user, profile } = useAuth();
   const { navigation } = state;
 
   const canGoBack = navigation.subsection || navigation.subsubsection;
@@ -93,7 +95,7 @@ export function Header() {
           
           <div className="text-right">
             <div className="text-sm font-medium text-gray-900">
-              FinanceApp MVP
+              Hola, {profile?.username || 'Usuario'}
             </div>
             <div className="text-xs text-gray-500">
               {state.currency}

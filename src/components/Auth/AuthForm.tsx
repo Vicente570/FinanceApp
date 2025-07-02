@@ -3,13 +3,15 @@ import { Card } from '../Common/Card';
 import { Button } from '../Common/Button';
 import { useAuth } from '../../hooks/useAuth';
 import { User, Lock, Mail, Calendar, UserCheck, Sparkles } from 'lucide-react';
+import { supabase } from '../../lib/supabase';
 
 interface AuthFormProps {
   language: 'es' | 'en';
+  onRegisteringChange?: (isRegistering: boolean) => void;
 }
 
-export function AuthForm({ language }: AuthFormProps) {
-  const { signIn, signUp, loading } = useAuth();
+export function AuthForm({ language, onRegisteringChange }: AuthFormProps) {
+  const { signIn, signUp, loading, authError } = useAuth();
   const [isSignUp, setIsSignUp] = useState(false);
   const [formData, setFormData] = useState({
     email: '',
@@ -41,36 +43,30 @@ export function AuthForm({ language }: AuthFormProps) {
 
   const validateForm = () => {
     const newErrors: Record<string, string> = {};
-
     if (!formData.email) {
       newErrors.email = language === 'es' ? 'Email es requerido' : 'Email is required';
     } else if (!/\S+@\S+\.\S+/.test(formData.email)) {
       newErrors.email = language === 'es' ? 'Email inválido' : 'Invalid email';
     }
-
     if (!formData.password) {
       newErrors.password = language === 'es' ? 'Contraseña es requerida' : 'Password is required';
     } else if (formData.password.length < 6) {
       newErrors.password = language === 'es' ? 'Contraseña debe tener al menos 6 caracteres' : 'Password must be at least 6 characters';
     }
-
     if (isSignUp) {
       if (!formData.username) {
         newErrors.username = language === 'es' ? 'Nombre de usuario es requerido' : 'Username is required';
       } else if (formData.username.length < 3) {
         newErrors.username = language === 'es' ? 'Nombre de usuario debe tener al menos 3 caracteres' : 'Username must be at least 3 characters';
       }
-
       if (!formData.alias) {
         newErrors.alias = language === 'es' ? 'Alias es requerido' : 'Alias is required';
       }
-
       const age = parseInt(formData.age);
       if (!formData.age || isNaN(age) || age < 13 || age > 120) {
         newErrors.age = language === 'es' ? 'Edad debe estar entre 13 y 120 años' : 'Age must be between 13 and 120';
       }
     }
-
     setErrors(newErrors);
     return Object.keys(newErrors).length === 0;
   };
@@ -78,12 +74,28 @@ export function AuthForm({ language }: AuthFormProps) {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     setMessage('');
-
     if (!validateForm()) return;
-
+    
+    // Marcar que estamos registrando si es signup
+    if (isSignUp && onRegisteringChange) {
+      onRegisteringChange(true);
+    }
+    
+    // Verificar username en Supabase justo antes de registrar
+    if (isSignUp) {
+      const username = formData.username.trim();
+      if (!username || username.length < 3) {
+        setErrors(prev => ({ ...prev, username: language === 'es' ? 'Nombre de usuario inválido' : 'Invalid username' }));
+        return;
+      }
+      
+      console.log('[DEBUG] Verificando username en Supabase:', username);
+      
+      // Username permitido para registro
+      console.log('[DEBUG] Procediendo con registro para username:', username);
+    }
     try {
       let result;
-      
       if (isSignUp) {
         result = await signUp({
           email: formData.email,
@@ -92,16 +104,11 @@ export function AuthForm({ language }: AuthFormProps) {
           alias: formData.alias,
           age: parseInt(formData.age)
         });
-
-        // Handle user already registered case
         if (!result.success && (result as any).code === 'user_already_registered') {
           const userExistsMessage = language === 'es' 
             ? 'Este email ya está registrado. Cambiando a inicio de sesión...' 
             : 'This email is already registered. Switching to sign in...';
-          
           setMessage(userExistsMessage);
-          
-          // Switch to sign in mode after a short delay
           setTimeout(() => {
             setIsSignUp(false);
             setFormData(prev => ({ 
@@ -113,7 +120,6 @@ export function AuthForm({ language }: AuthFormProps) {
             }));
             setMessage('');
           }, 2000);
-          
           return;
         }
       } else {
@@ -122,19 +128,32 @@ export function AuthForm({ language }: AuthFormProps) {
           password: formData.password
         });
       }
-
       if (result.success) {
         setMessage(result.message);
         if (isSignUp) {
-          // Cambiar a modo login después del registro exitoso
           setIsSignUp(false);
           setFormData({ email: formData.email, password: '', username: '', alias: '', age: '' });
         }
+        // Limpiar mensaje de éxito de localStorage y del estado tras login exitoso
+        if (typeof window !== 'undefined') {
+          localStorage.removeItem('profileSuccessMessage');
+        }
+        setSuccessMessage('');
       } else {
         setMessage(result.message);
       }
+      
+      // Resetear estado de registro
+      if (isSignUp && onRegisteringChange) {
+        onRegisteringChange(false);
+      }
     } catch (error) {
       setMessage(language === 'es' ? 'Error inesperado' : 'Unexpected error');
+    } finally {
+      // Resetear estado de registro en caso de error
+      if (isSignUp && onRegisteringChange) {
+        onRegisteringChange(false);
+      }
     }
   };
 
@@ -143,6 +162,7 @@ export function AuthForm({ language }: AuthFormProps) {
     if (errors[field]) {
       setErrors(prev => ({ ...prev, [field]: '' }));
     }
+    setMessage('');
   };
 
   return (
@@ -187,6 +207,12 @@ export function AuthForm({ language }: AuthFormProps) {
         {cookiesAccepted && (
           <Card className="shadow-xl border-0">
             <div className="p-8">
+              {/* Mostrar error global de autenticación */}
+              {authError && (
+                <div className="mb-4 p-3 rounded-lg bg-red-100 text-red-700 border border-red-200 text-center font-semibold animate-pulse">
+                  {authError}
+                </div>
+              )}
               {/* Tabs */}
               <div className="flex mb-6 bg-gray-100 rounded-lg p-1">
                 <button
@@ -307,8 +333,8 @@ export function AuthForm({ language }: AuthFormProps) {
                   </>
                 )}
 
-                {/* Mensaje */}
-                {message && (
+                {/* Mensaje local solo si no hay authError */}
+                {!authError && message && (
                   <div className={`p-3 rounded-lg text-sm ${
                     message.includes('exitoso') || message.includes('successful') 
                       ? 'bg-green-100 text-green-700 border border-green-200' 

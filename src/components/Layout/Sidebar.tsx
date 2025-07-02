@@ -50,26 +50,27 @@ const sections = [
     color: 'gray',
     gradient: 'from-gray-500 to-gray-600',
     subsections: [
-      { id: '1', name: 'General', nameEn: 'General' }
+      { id: '1', name: 'General', nameEn: 'General' },
+      { id: '2', name: 'Perfil', nameEn: 'Profile' }
     ]
   },
 ];
 
-const colorClasses = {
+const colorClasses: Record<string, string> = {
   blue: 'bg-gradient-to-r from-blue-500 to-blue-600 text-white shadow-lg shadow-blue-500/25',
   emerald: 'bg-gradient-to-r from-emerald-500 to-emerald-600 text-white shadow-lg shadow-emerald-500/25',
   purple: 'bg-gradient-to-r from-purple-500 to-purple-600 text-white shadow-lg shadow-purple-500/25',
   gray: 'bg-gradient-to-r from-gray-500 to-gray-600 text-white shadow-lg shadow-gray-500/25',
 };
 
-const inactiveColorClasses = {
+const inactiveColorClasses: Record<string, string> = {
   blue: 'text-blue-600 hover:bg-gradient-to-r hover:from-blue-50 hover:to-blue-100 hover:shadow-md transition-all duration-300',
   emerald: 'text-emerald-600 hover:bg-gradient-to-r hover:from-emerald-50 hover:to-emerald-100 hover:shadow-md transition-all duration-300',
   purple: 'text-purple-600 hover:bg-gradient-to-r hover:from-purple-50 hover:to-purple-100 hover:shadow-md transition-all duration-300',
   gray: 'text-gray-600 hover:bg-gradient-to-r hover:from-gray-50 hover:to-gray-100 hover:shadow-md transition-all duration-300',
 };
 
-const subsectionColorClasses = {
+const subsectionColorClasses: Record<string, string> = {
   blue: 'text-blue-700 bg-gradient-to-r from-blue-50 to-blue-100 hover:from-blue-100 hover:to-blue-200 border-l-4 border-blue-400',
   emerald: 'text-emerald-700 bg-gradient-to-r from-emerald-50 to-emerald-100 hover:from-emerald-100 hover:to-emerald-200 border-l-4 border-emerald-400',
   purple: 'text-purple-700 bg-gradient-to-r from-purple-50 to-purple-100 hover:from-purple-100 hover:to-purple-200 border-l-4 border-purple-400',
