@@ -19,6 +19,7 @@ function AppContent() {
   const { user, profile, loading, signOut } = useAuth();
   const [loggingOut, setLoggingOut] = React.useState(false);
   const [isRegistering, setIsRegistering] = React.useState(false);
+  const [isActive, setIsActive] = React.useState(true);
 
   React.useEffect(() => {
     // Solo hacer logout si el usuario no tiene perfil, no está en proceso de carga, y no está registrándose
@@ -30,10 +31,36 @@ function AppContent() {
     }
   }, [user, profile, loading, signOut, isRegistering]);
 
+  // Manejar visibilidad de la página para evitar problemas de carga
+  React.useEffect(() => {
+    const handleVisibilityChange = () => {
+      setIsActive(!document.hidden);
+    };
+
+    const handleFocus = () => {
+      setIsActive(true);
+    };
+
+    const handleBlur = () => {
+      setIsActive(false);
+    };
+
+    document.addEventListener('visibilitychange', handleVisibilityChange);
+    window.addEventListener('focus', handleFocus);
+    window.addEventListener('blur', handleBlur);
+
+    return () => {
+      document.removeEventListener('visibilitychange', handleVisibilityChange);
+      window.removeEventListener('focus', handleFocus);
+      window.removeEventListener('blur', handleBlur);
+    };
+  }, []);
+
   console.log('🔍 App render state:', { 
     hasUser: !!user, 
     hasProfile: !!profile, 
-    loading
+    loading,
+    isActive
   });
 
   if (loading || loggingOut) {
@@ -63,6 +90,15 @@ function AppContent() {
             <SectionRenderer />
           </main>
         </div>
+        {/* Indicador de actividad */}
+        {!isActive && (
+          <div className="fixed bottom-4 right-4 bg-blue-500 text-white px-3 py-2 rounded-lg shadow-lg z-50 text-sm">
+            <div className="flex items-center space-x-2">
+              <div className="w-2 h-2 bg-white rounded-full animate-pulse"></div>
+              <span>Aplicación activa</span>
+            </div>
+          </div>
+        )}
       </div>
     </AppProvider>
   );
