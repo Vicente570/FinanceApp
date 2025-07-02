@@ -120,6 +120,17 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [isAuthenticated, dataLoaded]);
 
+  // Guardar automáticamente cuando cambien los datos importantes
+  useEffect(() => {
+    if (isAuthenticated && dataLoaded) {
+      const timeoutId = setTimeout(() => {
+        saveData();
+      }, 1000); // Guardar después de 1 segundo de inactividad
+      
+      return () => clearTimeout(timeoutId);
+    }
+  }, [state.expenses, state.accounts, state.budgets, state.assets, state.debts, state.properties, state.interpersonalDebts, isAuthenticated, dataLoaded]);
+
   // Función para convertir un valor monetario
   const convertAmount = async (amount: number, fromCurrency: string, toCurrency: string): Promise<number> => {
     if (fromCurrency === toCurrency) return amount;
