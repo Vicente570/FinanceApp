@@ -224,21 +224,7 @@ export function useAuth() {
     };
   }, []);
 
-  // Manejo seguro del evento visibilitychange para mantener la sesión activa
-  useEffect(() => {
-    const handleVisibilityChange = () => {
-      if (document.visibilityState === 'visible') {
-        console.log('[DEBUG] Pestaña visible - manteniendo sesión activa');
-        // Solo registrar que la pestaña está visible, sin afectar el estado de autenticación
-      }
-    };
 
-    document.addEventListener('visibilitychange', handleVisibilityChange);
-    
-    return () => {
-      document.removeEventListener('visibilitychange', handleVisibilityChange);
-    };
-  }, []);
 
   const signUp = async (data: SignUpData) => {
     setActionLoading(true);

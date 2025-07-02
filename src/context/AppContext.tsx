@@ -123,7 +123,15 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Guardar automáticamente cuando cambien los datos importantes
   useEffect(() => {
     if (isAuthenticated && dataLoaded) {
-      console.log('🔄 Data changed, scheduling auto-save...');
+      console.log('🔄 Data changed, scheduling auto-save...', {
+        expensesCount: state.expenses.length,
+        accountsCount: state.accounts.length,
+        budgetsCount: state.budgets.length,
+        assetsCount: state.assets.length,
+        debtsCount: state.debts.length,
+        propertiesCount: state.properties.length,
+        interpersonalDebtsCount: state.interpersonalDebts.length
+      });
       const timeoutId = setTimeout(() => {
         console.log('💾 Executing auto-save...');
         saveData();
@@ -570,7 +578,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(prev => ({
       ...prev,
       assets: prev.assets.map(asset => 
-        asset.id === assetId ? { ...asset, groupId } : asset
+        asset.id === assetId ? { ...asset, groupId: groupId || undefined } : asset
       )
     }));
   };
@@ -670,6 +678,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
             ...debt,
             isSettled: debt.isSettled || false
           })),
+          theme: (loadedData.theme as 'light' | 'dark' | 'auto') || prev.theme,
+          language: (loadedData.language as 'es' | 'en') || prev.language,
           navigation: prev.navigation // Mantener navegación actual
         }));
         
