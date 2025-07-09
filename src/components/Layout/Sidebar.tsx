@@ -1,6 +1,6 @@
 import React, { useState } from 'react';
 import { useApp } from '../../context/AppContext';
-import { Wallet, TrendingUp, BarChart3, Settings, ChevronRight, Save, Sparkles, DollarSign, Target } from 'lucide-react';
+import { Wallet, TrendingUp, BarChart3, Settings, ChevronRight, Sparkles, DollarSign, Target } from 'lucide-react';
 
 const sections = [
   { 
@@ -78,16 +78,22 @@ const subsectionColorClasses: Record<string, string> = {
 };
 
 export function Sidebar() {
-  const { state, navigate, saveData } = useApp();
+  const { state, navigate } = useApp();
   const { navigation, accounts, assets, expenses } = state;
   const [isCollapsed, setIsCollapsed] = useState(true);
   const [hoverTimeout, setHoverTimeout] = useState<NodeJS.Timeout | null>(null);
-  const [isSaving, setIsSaving] = useState(false);
-
-  const handleSave = async () => {
-    setIsSaving(true);
-    saveData();
-    setTimeout(() => setIsSaving(false), 1000);
+  
+  // Función helper para formatear monedas
+  const formatCurrency = (amount: number) => {
+    // Para USD, siempre usar formato inglés para consistencia
+    const locale = state.currency === 'USD' ? 'en-US' : (state.language === 'es' ? 'es-ES' : 'en-US');
+    
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
   };
 
   const handleMouseEnter = () => {
@@ -149,7 +155,7 @@ export function Sidebar() {
           </div>
         </div>
 
-        {/* Contenido scrolleable - incluye estadísticas, botón guardar y navegación */}
+        {/* Contenido scrolleable - incluye estadísticas y navegación */}
         <div className="flex-1 overflow-y-auto">
           {/* Estadísticas rápidas - ahora dentro del área scrolleable */}
           {!isCollapsed && (
@@ -164,7 +170,7 @@ export function Sidebar() {
                       </span>
                     </div>
                     <span className={`text-xs font-bold ${totalBalance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      ${Math.abs(totalBalance).toLocaleString()}
+                      {formatCurrency(Math.abs(totalBalance))}
                     </span>
                   </div>
                 </div>
@@ -178,7 +184,7 @@ export function Sidebar() {
                       </span>
                     </div>
                     <span className="text-xs font-bold text-blue-600">
-                      ${totalAssets.toLocaleString()}
+                      {formatCurrency(totalAssets)}
                     </span>
                   </div>
                 </div>
@@ -192,7 +198,7 @@ export function Sidebar() {
                       </span>
                     </div>
                     <span className="text-xs font-bold text-orange-600">
-                      ${recentExpenses.toLocaleString()}
+                      {formatCurrency(recentExpenses)}
                     </span>
                   </div>
                 </div>
@@ -200,26 +206,7 @@ export function Sidebar() {
             </div>
           )}
 
-          {/* Botón de guardar - ahora dentro del área scrolleable */}
-          {!isCollapsed && (
-            <div className="px-2 py-3 border-b border-gray-100">
-              <button
-                onClick={handleSave}
-                disabled={isSaving}
-                className={`w-full bg-gradient-to-r from-blue-500 to-blue-600 hover:from-blue-600 hover:to-blue-700 text-white px-3 py-2 rounded-lg text-xs font-medium transition-all duration-300 transform hover:scale-105 hover:shadow-lg shadow-blue-500/25 flex items-center justify-center space-x-2 ${
-                  isSaving ? 'animate-pulse' : ''
-                }`}
-              >
-                <Save className={`w-3 h-3 transition-transform duration-300 ${isSaving ? 'animate-spin' : ''}`} />
-                <span>
-                  {isSaving 
-                    ? (state.language === 'es' ? 'Guardando...' : 'Saving...') 
-                    : (state.language === 'es' ? 'Guardar Datos' : 'Save Data')
-                  }
-                </span>
-              </button>
-            </div>
-          )}
+
           
           {/* Navegación principal */}
           <nav className="p-2 space-y-2">

@@ -1,11 +1,24 @@
 import React from 'react';
 import { useApp } from '../../../context/AppContext';
 import { Card } from '../../Common/Card';
-import { TrendingUp, TrendingDown, Target, DollarSign } from 'lucide-react';
+import { TrendingUp, TrendingDown, Target, DollarSign, AlertTriangle, Info } from 'lucide-react';
 
 export function Charts() {
   const { state, getAssetsByGroup } = useApp();
   const { assets, assetGroups } = state;
+
+  // Función helper para formatear monedas (los valores ya están convertidos en el estado)
+  const formatCurrency = (amount: number) => {
+    // Para USD, siempre usar formato inglés para consistencia
+    const locale = state.currency === 'USD' ? 'en-US' : (state.language === 'es' ? 'es-ES' : 'en-US');
+    
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
 
   // Función para calcular valores correctos de activos
   const getAssetCalculations = (asset: any) => {
@@ -108,6 +121,60 @@ export function Charts() {
   const assetTypePieData = createAssetTypePieChart();
   const groupPieData = createGroupPieChart();
 
+  // Calcular riesgo del portafolio
+  const calculatePortfolioRisk = () => {
+    const riskWeights = {
+      low: 1,
+      medium: 2,
+      high: 3,
+      very_high: 4
+    };
+
+    let totalValue = 0;
+    let weightedRisk = 0;
+
+    assets.forEach(asset => {
+      const calc = getAssetCalculations(asset);
+      const assetValue = calc.currentValue;
+      totalValue += assetValue;
+      weightedRisk += assetValue * riskWeights[asset.riskLevel as keyof typeof riskWeights];
+    });
+
+    if (totalValue === 0) return { level: 'low', percentage: 0, description: 'Sin activos' };
+
+    const averageRisk = weightedRisk / totalValue;
+    const percentage = ((averageRisk - 1) / 3) * 100; // Normalizar a porcentaje (1-4 -> 0-100%)
+
+    let level, description;
+    if (averageRisk <= 1.5) {
+      level = 'low';
+      description = 'Bajo';
+    } else if (averageRisk <= 2.5) {
+      level = 'medium';
+      description = 'Medio';
+    } else if (averageRisk <= 3.5) {
+      level = 'high';
+      description = 'Alto';
+    } else {
+      level = 'very_high';
+      description = 'Muy Alto';
+    }
+
+    return { level, percentage, description, averageRisk };
+  };
+
+  const getRiskColor = (level: string) => {
+    switch (level) {
+      case 'low': return 'text-green-600 bg-green-100';
+      case 'medium': return 'text-yellow-600 bg-yellow-100';
+      case 'high': return 'text-red-600 bg-red-100';
+      case 'very_high': return 'text-purple-600 bg-purple-100';
+      default: return 'text-gray-600 bg-gray-100';
+    }
+  };
+
+  const portfolioRisk = calculatePortfolioRisk();
+
   return (
     <div className="space-y-6 pb-24">
       <h2 className="text-2xl font-bold text-gray-900">
@@ -116,9 +183,29 @@ export function Charts() {
 
       {/* Distribución por Tipo de Activo */}
       <Card>
-        <h3 className="text-lg font-semibold text-gray-900 mb-6">
-          {state.language === 'es' ? 'Distribución por Tipo de Activo' : 'Distribution by Asset Type'}
-        </h3>
+        <div className="flex justify-between items-start mb-6">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {state.language === 'es' ? 'Distribución por Tipo de Activo' : 'Distribution by Asset Type'}
+          </h3>
+          
+          {/* Indicador de Riesgo del Portafolio */}
+          <div className="flex items-center space-x-2">
+            <AlertTriangle className="w-4 h-4 text-gray-500" />
+            <div className="text-right">
+              <div className="flex items-center space-x-2">
+                <span className="text-sm text-gray-600">
+                  {state.language === 'es' ? 'Riesgo:' : 'Risk:'}
+                </span>
+                <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(portfolioRisk.level)}`}>
+                  {portfolioRisk.description}
+                </span>
+              </div>
+              <div className="text-xs text-gray-500">
+                {portfolioRisk.percentage.toFixed(1)}% {state.language === 'es' ? 'de riesgo' : 'risk level'}
+              </div>
+            </div>
+          </div>
+        </div>
         
         <div className="grid grid-cols-1 md:grid-cols-2 gap-8">
           {/* Gráfico de Torta */}
@@ -156,7 +243,7 @@ export function Charts() {
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-xl font-bold text-gray-900">${totalAssetValue.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(totalAssetValue)}</p>
                   <p className="text-sm text-gray-600">
                     {state.language === 'es' ? 'Total' : 'Total'}
                   </p>
@@ -180,7 +267,7 @@ export function Charts() {
                   </div>
                 </div>
                 <div className="text-right">
-                  <span className="text-gray-900 font-semibold">${item.value.toLocaleString()}</span>
+                  <span className="text-gray-900 font-semibold">{formatCurrency(item.value)}</span>
                   <span className="text-gray-500 text-sm ml-2">({item.percentage.toFixed(1)}%)</span>
                 </div>
               </div>
@@ -233,7 +320,7 @@ export function Charts() {
                 <div className="absolute inset-0 flex items-center justify-center">
                   <div className="text-center">
                     <p className="text-xl font-bold text-gray-900">
-                      ${groupPieData.reduce((sum, group) => sum + group.totalValue, 0).toLocaleString()}
+                      {formatCurrency(groupPieData.reduce((sum, group) => sum + group.totalValue, 0))}
                     </p>
                     <p className="text-sm text-gray-600">
                       {state.language === 'es' ? 'En Grupos' : 'In Groups'}
@@ -258,7 +345,7 @@ export function Charts() {
                     </div>
                   </div>
                   <div className="text-right">
-                    <span className="text-gray-900 font-semibold">${group.totalValue.toLocaleString()}</span>
+                    <span className="text-gray-900 font-semibold">{formatCurrency(group.totalValue)}</span>
                     <span className="text-gray-500 text-sm ml-2">({group.percentage.toFixed(1)}%)</span>
                   </div>
                 </div>
@@ -287,7 +374,7 @@ export function Charts() {
                   </div>
                   <div className="flex items-center space-x-4">
                     <span className="text-sm text-gray-600">
-                      ${group.totalValue.toLocaleString()}
+                      {formatCurrency(group.totalValue)}
                     </span>
                     <div className={`flex items-center space-x-1 ${
                       group.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'
@@ -298,7 +385,7 @@ export function Charts() {
                         <TrendingDown className="w-4 h-4" />
                       )}
                       <span className="font-medium">
-                        {group.totalGainLoss >= 0 ? '+' : ''}${group.totalGainLoss.toLocaleString()}
+                        {group.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(group.totalGainLoss)}
                       </span>
                       <span className="text-sm">
                         ({group.totalGainLoss >= 0 ? '+' : ''}{group.percentage.toFixed(1)}%)
@@ -324,6 +411,123 @@ export function Charts() {
           </div>
         </Card>
       )}
+
+      {/* Análisis de Riesgo del Portafolio */}
+      <Card>
+        <div className="flex items-center space-x-2 mb-4">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {state.language === 'es' ? 'Análisis de Riesgo del Portafolio' : 'Portfolio Risk Analysis'}
+          </h3>
+          <div className="relative group">
+            <Info className="w-4 h-4 text-gray-400 cursor-help" />
+            <div className="absolute bottom-full left-0 mb-2 w-72 p-3 bg-gray-900 text-white text-xs rounded-lg shadow-lg opacity-0 group-hover:opacity-100 transition-opacity duration-200 pointer-events-none z-10">
+              <div className="font-medium mb-1">
+                {state.language === 'es' ? '¿Cómo se calcula el riesgo?' : 'How is risk calculated?'}
+              </div>
+              <div className="text-gray-300">
+                {state.language === 'es' 
+                  ? 'El riesgo se calcula como un promedio ponderado por el valor de cada activo. Bajo, Medio, Alto, Muy Alto. Es recomendable no exceder el 20% de nivel de riesgo para mantener un portafolio equilibrado.'
+                  : 'Risk is calculated as a weighted average by the value of each asset. Low, Medium, High, Very High. It is recommended not to exceed 20% risk level to maintain a balanced portfolio.'
+                }
+              </div>
+            </div>
+          </div>
+        </div>
+        
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-6">
+          {/* Resumen del Riesgo */}
+          <div className="space-y-4">
+            <div className="flex items-center justify-between p-4 bg-gray-50 rounded-lg">
+              <div className="flex items-center space-x-3">
+                <AlertTriangle className="w-6 h-6 text-gray-600" />
+                <div>
+                  <p className="font-medium text-gray-900">
+                    {state.language === 'es' ? 'Riesgo Total del Portafolio' : 'Total Portfolio Risk'}
+                  </p>
+                  <p className="text-sm text-gray-600">
+                    {state.language === 'es' ? 'Promedio ponderado por valor' : 'Weighted average by value'}
+                  </p>
+                </div>
+              </div>
+              <div className="text-right">
+                <span className={`px-3 py-1 rounded-full text-sm font-medium ${getRiskColor(portfolioRisk.level)}`}>
+                  {portfolioRisk.description}
+                </span>
+                <p className="text-xs text-gray-500 mt-1">
+                  {portfolioRisk.percentage.toFixed(1)}% {state.language === 'es' ? 'de riesgo' : 'risk level'}
+                </p>
+              </div>
+            </div>
+            
+            {/* Barra de progreso del riesgo */}
+            <div className="space-y-2">
+              <div className="flex justify-between text-sm">
+                <span className="text-gray-600">{state.language === 'es' ? 'Nivel de Riesgo' : 'Risk Level'}</span>
+                <span className="text-gray-900 font-medium">{portfolioRisk.percentage.toFixed(1)}%</span>
+              </div>
+              <div className="w-full bg-gray-200 rounded-full h-3">
+                <div
+                  className={`h-3 rounded-full transition-all duration-500 ${
+                    portfolioRisk.level === 'low' ? 'bg-green-500' :
+                    portfolioRisk.level === 'medium' ? 'bg-yellow-500' :
+                    portfolioRisk.level === 'high' ? 'bg-red-500' : 'bg-purple-500'
+                  }`}
+                  style={{ width: `${Math.min(portfolioRisk.percentage, 100)}%` }}
+                />
+              </div>
+            </div>
+          </div>
+
+          {/* Desglose por Nivel de Riesgo */}
+          <div className="space-y-3">
+            <h4 className="font-medium text-gray-900">
+              {state.language === 'es' ? 'Distribución por Nivel de Riesgo' : 'Distribution by Risk Level'}
+            </h4>
+            {(() => {
+              const riskBreakdown = {
+                low: { value: 0, count: 0 },
+                medium: { value: 0, count: 0 },
+                high: { value: 0, count: 0 },
+                very_high: { value: 0, count: 0 }
+              };
+
+              assets.forEach(asset => {
+                const calc = getAssetCalculations(asset);
+                riskBreakdown[asset.riskLevel as keyof typeof riskBreakdown].value += calc.currentValue;
+                riskBreakdown[asset.riskLevel as keyof typeof riskBreakdown].count += 1;
+              });
+
+              const totalValue = Object.values(riskBreakdown).reduce((sum, level) => sum + level.value, 0);
+              const riskLabels = {
+                low: state.language === 'es' ? 'Bajo' : 'Low',
+                medium: state.language === 'es' ? 'Medio' : 'Medium',
+                high: state.language === 'es' ? 'Alto' : 'High',
+                very_high: state.language === 'es' ? 'Muy Alto' : 'Very High'
+              };
+
+              return Object.entries(riskBreakdown).map(([level, data]) => {
+                const percentage = totalValue > 0 ? (data.value / totalValue) * 100 : 0;
+                return (
+                  <div key={level} className="flex items-center justify-between p-3 bg-gray-50 rounded-lg">
+                    <div className="flex items-center space-x-3">
+                      <span className={`px-2 py-1 rounded-full text-xs font-medium ${getRiskColor(level)}`}>
+                        {riskLabels[level as keyof typeof riskLabels]}
+                      </span>
+                      <span className="text-sm text-gray-600">
+                        {data.count} {state.language === 'es' ? 'activos' : 'assets'}
+                      </span>
+                    </div>
+                    <div className="text-right">
+                      <span className="text-gray-900 font-semibold">{formatCurrency(data.value)}</span>
+                      <span className="text-gray-500 text-sm ml-2">({percentage.toFixed(1)}%)</span>
+                    </div>
+                  </div>
+                );
+              });
+            })()}
+          </div>
+        </div>
+      </Card>
 
       {/* Resumen de Rendimiento Total */}
       <Card>
@@ -353,7 +557,7 @@ export function Charts() {
                     <DollarSign className="w-6 h-6 text-blue-500" />
                   </div>
                   <p className="text-sm text-gray-600">{state.language === 'es' ? 'Valor Actual' : 'Current Value'}</p>
-                  <p className="text-xl font-bold text-gray-900">${totalCurrentValue.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(totalCurrentValue)}</p>
                 </div>
                 
                 <div className="text-center">
@@ -361,7 +565,7 @@ export function Charts() {
                     <Target className="w-6 h-6 text-purple-500" />
                   </div>
                   <p className="text-sm text-gray-600">{state.language === 'es' ? 'Inversión Total' : 'Total Investment'}</p>
-                  <p className="text-xl font-bold text-gray-900">${totalPurchaseValue.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(totalPurchaseValue)}</p>
                 </div>
                 
                 <div className="text-center">
@@ -374,7 +578,7 @@ export function Charts() {
                   </div>
                   <p className="text-sm text-gray-600">{state.language === 'es' ? 'Ganancia/Pérdida' : 'Gain/Loss'}</p>
                   <p className={`text-xl font-bold ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                    {totalGainLoss >= 0 ? '+' : ''}${totalGainLoss.toLocaleString()}
+                    {totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totalGainLoss)}
                   </p>
                 </div>
                 

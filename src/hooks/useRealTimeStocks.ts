@@ -78,8 +78,7 @@ export function useRealTimeStocks(options: UseRealTimeStocksOptions = {}) {
         
         console.log(`✅ ${asset.symbol}: $${stockData.price.toFixed(2)} (${stockData.isConnected ? 'API' : 'Simulado'})`);
         
-        // Mostrar notificación individual
-        showStockUpdateNotification(asset.symbol, stockData.price, stockData.change, stockData.isConnected);
+        // Notificación individual deshabilitada por solicitud del usuario
         
         return true;
       } else {

@@ -12,6 +12,16 @@ const subsections = [
 export function StatisticsOverview() {
   const { state, navigate } = useApp();
   const { expenses, budgets, accounts, assets, debts, properties = [] } = state;
+  
+  // Función helper para formatear monedas
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat(state.language === 'es' ? 'es-ES' : 'en-US', {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
 
   const totalExpenses = expenses.reduce((sum, expense) => sum + expense.amount, 0);
   const totalBudget = budgets.reduce((sum, budget) => sum + budget.allocated, 0);
@@ -39,7 +49,7 @@ export function StatisticsOverview() {
             <div>
               <p className="text-sm text-gray-600">Gastos Totales</p>
               <p className="text-2xl font-bold text-red-600">
-                ${totalExpenses.toLocaleString()}
+                {formatCurrency(totalExpenses)}
               </p>
             </div>
             <BarChart3 className="w-8 h-8 text-red-500" />
@@ -51,7 +61,7 @@ export function StatisticsOverview() {
             <div>
               <p className="text-sm text-gray-600">Presupuesto Total</p>
               <p className="text-2xl font-bold text-blue-600">
-                ${totalBudget.toLocaleString()}
+                {formatCurrency(totalBudget)}
               </p>
             </div>
             <PieChart className="w-8 h-8 text-blue-500" />
@@ -63,12 +73,12 @@ export function StatisticsOverview() {
             <div>
               <p className="text-sm text-gray-600">Activos Totales</p>
               <p className="text-2xl font-bold text-green-600">
-                ${totalAssets.toLocaleString()}
+                {formatCurrency(totalAssets)}
               </p>
               <div className="text-xs text-gray-500 mt-1">
-                <div>Efectivo: ${liquidAssets.toLocaleString()}</div>
-                <div>Inversiones: ${investmentAssets.toLocaleString()}</div>
-                <div>Propiedades: ${propertyAssets.toLocaleString()}</div>
+                <div>Efectivo: {formatCurrency(liquidAssets)}</div>
+                <div>Inversiones: {formatCurrency(investmentAssets)}</div>
+                <div>Propiedades: {formatCurrency(propertyAssets)}</div>
               </div>
             </div>
             <TrendingUp className="w-8 h-8 text-green-500" />
@@ -80,11 +90,11 @@ export function StatisticsOverview() {
             <div>
               <p className="text-sm text-gray-600">Patrimonio Neto</p>
               <p className={`text-2xl font-bold ${netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ${netWorth.toLocaleString()}
+                {formatCurrency(netWorth)}
               </p>
               <div className="text-xs text-gray-500 mt-1">
-                <div>Activos: ${totalAssets.toLocaleString()}</div>
-                <div>Pasivos: ${totalLiabilities.toLocaleString()}</div>
+                <div>Activos: {formatCurrency(totalAssets)}</div>
+                <div>Pasivos: {formatCurrency(totalLiabilities)}</div>
               </div>
             </div>
             <TrendingUp className="w-8 h-8 text-purple-500" />

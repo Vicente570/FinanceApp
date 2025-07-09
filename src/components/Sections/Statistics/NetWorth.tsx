@@ -6,6 +6,16 @@ import { TrendingUp, TrendingDown, DollarSign, Home, Wallet, CreditCard, Target,
 export function NetWorth() {
   const { state } = useApp();
   const { accounts, assets, debts, properties, interpersonalDebts } = state;
+  
+  // Función helper para formatear monedas
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat(state.language === 'es' ? 'es-ES' : 'en-US', {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
 
   // Calcular activos líquidos (efectivo)
   const liquidAssets = accounts.reduce((sum, account) => sum + Math.max(0, account.balance), 0);
@@ -119,17 +129,17 @@ export function NetWorth() {
               {state.language === 'es' ? 'Patrimonio Neto Total' : 'Total Net Worth'}
             </h3>
             <p className={`text-4xl font-bold ${netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${netWorth.toLocaleString()}
+              {formatCurrency(netWorth)}
             </p>
           </div>
           <div className="grid grid-cols-2 gap-8">
             <div>
               <p className="text-sm text-gray-600">{state.language === 'es' ? 'Activos Totales' : 'Total Assets'}</p>
-              <p className="text-2xl font-bold text-green-600">${totalAssets.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-green-600">{formatCurrency(totalAssets)}</p>
             </div>
             <div>
               <p className="text-sm text-gray-600">{state.language === 'es' ? 'Pasivos Totales' : 'Total Liabilities'}</p>
-              <p className="text-2xl font-bold text-red-600">${totalLiabilities.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-red-600">{formatCurrency(totalLiabilities)}</p>
             </div>
           </div>
         </div>
@@ -165,14 +175,14 @@ export function NetWorth() {
                             <TrendingDown className="w-3 h-3" />
                           )}
                           <span>
-                            {category.gainLoss >= 0 ? '+' : ''}${category.gainLoss.toLocaleString()}
+                            {category.gainLoss >= 0 ? '+' : ''}{formatCurrency(category.gainLoss)}
                           </span>
                         </div>
                       )}
                     </div>
                   </div>
                   <div className="text-right">
-                    <p className="text-lg font-bold text-gray-900">${category.amount.toLocaleString()}</p>
+                    <p className="text-lg font-bold text-gray-900">{formatCurrency(category.amount)}</p>
                     <p className="text-sm text-gray-500">{percentage.toFixed(1)}%</p>
                   </div>
                 </div>
@@ -194,7 +204,7 @@ export function NetWorth() {
                     {category.accounts.map((account) => (
                       <div key={account.id} className="flex justify-between text-sm text-gray-600">
                         <span>{account.name}</span>
-                        <span>${account.balance.toLocaleString()}</span>
+                        <span>{formatCurrency(account.balance)}</span>
                       </div>
                     ))}
                   </div>
@@ -205,7 +215,7 @@ export function NetWorth() {
                     {category.items.slice(0, 3).map((item: any) => (
                       <div key={item.id} className="flex justify-between text-sm text-gray-600">
                         <span>{item.name}</span>
-                        <span>${item.value.toLocaleString()}</span>
+                        <span>{formatCurrency(item.value)}</span>
                       </div>
                     ))}
                     {category.items.length > 3 && (
@@ -243,7 +253,7 @@ export function NetWorth() {
                       <h4 className="font-medium text-gray-900">{category.category}</h4>
                     </div>
                     <div className="text-right">
-                      <p className="text-lg font-bold text-red-600">${category.amount.toLocaleString()}</p>
+                      <p className="text-lg font-bold text-red-600">{formatCurrency(category.amount)}</p>
                       <p className="text-sm text-gray-500">{percentage.toFixed(1)}%</p>
                     </div>
                   </div>
@@ -261,7 +271,7 @@ export function NetWorth() {
                       {category.accounts.map((account) => (
                         <div key={account.id} className="flex justify-between text-sm text-gray-600">
                           <span>{account.name}</span>
-                          <span>${Math.abs(account.balance).toLocaleString()}</span>
+                          <span>{formatCurrency(Math.abs(account.balance))}</span>
                         </div>
                       ))}
                     </div>
@@ -272,7 +282,7 @@ export function NetWorth() {
                       {category.items.slice(0, 3).map((item: any) => (
                         <div key={item.id} className="flex justify-between text-sm text-gray-600">
                           <span>{item.name}</span>
-                          <span>${item.amount.toLocaleString()}</span>
+                          <span>{formatCurrency(item.amount)}</span>
                         </div>
                       ))}
                       {category.items.length > 3 && (
@@ -307,16 +317,16 @@ export function NetWorth() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm text-emerald-700">{state.language === 'es' ? 'Valor actual:' : 'Current value:'}</span>
-                <span className="font-semibold text-emerald-900">${investmentAssets.toLocaleString()}</span>
+                <span className="font-semibold text-emerald-900">{formatCurrency(investmentAssets)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-emerald-700">{state.language === 'es' ? 'Costo inicial:' : 'Initial cost:'}</span>
-                <span className="font-semibold text-emerald-900">${investmentCost.toLocaleString()}</span>
+                <span className="font-semibold text-emerald-900">{formatCurrency(investmentCost)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-emerald-700">{state.language === 'es' ? 'Ganancia/Pérdida:' : 'Gain/Loss:'}</span>
                 <span className={`font-bold ${investmentGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {investmentGainLoss >= 0 ? '+' : ''}${investmentGainLoss.toLocaleString()}
+                  {investmentGainLoss >= 0 ? '+' : ''}{formatCurrency(investmentGainLoss)}
                 </span>
               </div>
               <div className="flex justify-between">
@@ -339,16 +349,16 @@ export function NetWorth() {
             <div className="space-y-2">
               <div className="flex justify-between">
                 <span className="text-sm text-purple-700">{state.language === 'es' ? 'Valor actual:' : 'Current value:'}</span>
-                <span className="font-semibold text-purple-900">${propertyAssets.toLocaleString()}</span>
+                <span className="font-semibold text-purple-900">{formatCurrency(propertyAssets)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-purple-700">{state.language === 'es' ? 'Costo inicial:' : 'Initial cost:'}</span>
-                <span className="font-semibold text-purple-900">${propertyCost.toLocaleString()}</span>
+                <span className="font-semibold text-purple-900">{formatCurrency(propertyCost)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-sm text-purple-700">{state.language === 'es' ? 'Ganancia/Pérdida:' : 'Gain/Loss:'}</span>
                 <span className={`font-bold ${propertyGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  {propertyGainLoss >= 0 ? '+' : ''}${propertyGainLoss.toLocaleString()}
+                  {propertyGainLoss >= 0 ? '+' : ''}{formatCurrency(propertyGainLoss)}
                 </span>
               </div>
               <div className="flex justify-between">

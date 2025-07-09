@@ -1,4 +1,4 @@
-import React, { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import React, { createContext, useContext, useState, useEffect, ReactNode, useCallback, useRef } from 'react';
 import { NavigationState, Account, Budget, Expense, Asset, AssetGroup, Debt, InterpersonalDebt, Property } from '../types';
 import { exchangeRateApiService } from '../services/exchangeRateApi';
 import { useSupabaseData } from '../hooks/useSupabaseData';
@@ -55,7 +55,12 @@ interface AppContextType {
   assignAssetToGroup: (assetId: string, groupId: string | null) => void;
   getAssetsByGroup: (groupId: string) => Asset[];
   getUnassignedAssets: () => Asset[];
+  getEmergencyFundValue: () => number;
+  syncEmergencyFund: () => void;
+  cleanDuplicateEmergencyAssets: () => void;
   resetAppData: () => void;
+  convertAmount: (amount: number, fromCurrency: string, toCurrency: string) => Promise<number>;
+  testConversions: () => Promise<void>;
 }
 
 const AppContext = createContext<AppContextType | undefined>(undefined);
@@ -84,6 +89,7 @@ const initialState: AppState = {
     { id: '3', name: 'S&P 500 ETF', type: 'mutual_funds', value: 12000, purchasePrice: 10000, quantity: 250, currency: 'USD', riskLevel: 'low', purchaseDate: '2024-02-20', reason: 'Inversión diversificada en el mercado', groupId: 'funds-group' },
   ],
   assetGroups: [
+    { id: 'emergency-fund', name: 'Fondo de Emergencia', description: 'Parte del ahorro que debe estar en liquidez para cubrir gastos imprevistos', color: '#EF4444', createdDate: '2024-01-01', isSpecial: true },
     { id: 'tech-group', name: 'Acciones Tecnológicas', description: 'Empresas de tecnología y software', color: '#3B82F6', createdDate: '2024-01-01' },
     { id: 'funds-group', name: 'Fondos Mutuos', description: 'Fondos de inversión diversificados', color: '#10B981', createdDate: '2024-01-01' },
   ],
@@ -109,6 +115,14 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const [isConverting, setIsConverting] = useState(false);
   const [dataLoaded, setDataLoaded] = useState(false);
   
+  // Función para generar IDs únicos
+  const generateId = () => {
+    const timestamp = Date.now();
+    const random = Math.random().toString(36).substr(2, 9);
+    const perfTime = window.performance.now().toString().replace('.', '');
+    return `${timestamp}_${random}_${perfTime}`;
+  };
+  
   const { isAuthenticated, user } = useAuth();
   const { saveAllAppData, loadAllAppData } = useSupabaseData();
 
@@ -124,6 +138,8 @@ export function AppProvider({ children }: { children: ReactNode }) {
       loadData();
     }
   }, [isAuthenticated, dataLoaded]);
+
+
 
   // Guardar automáticamente cuando cambien los datos importantes
   useEffect(() => {
@@ -146,16 +162,54 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
   }, [state.expenses, state.accounts, state.budgets, state.assets, state.debts, state.properties, state.interpersonalDebts, isAuthenticated, dataLoaded]);
 
-  // Función para convertir un valor monetario
+  // Función para convertir un valor monetario usando USD como moneda base
   const convertAmount = async (amount: number, fromCurrency: string, toCurrency: string): Promise<number> => {
     if (fromCurrency === toCurrency) return amount;
     
     try {
       const convertedAmount = await exchangeRateApiService.convertCurrency(amount, fromCurrency, toCurrency);
-      return Math.round(convertedAmount * 100) / 100; // Redondear a 2 decimales
+      // Usar toFixed para evitar problemas de precisión de punto flotante
+      const result = parseFloat(convertedAmount.toFixed(2));
+      
+      // Validación simplificada: solo verificar conversiones significativas
+      if (Math.abs(amount) > 1) { // Solo validar para valores mayores a 1
+        const backConversion = await exchangeRateApiService.convertCurrency(result, toCurrency, fromCurrency);
+        const backResult = parseFloat(backConversion.toFixed(2));
+        const difference = Math.abs(amount - backResult);
+        const percentDifference = (difference / amount) * 100;
+        
+        if (percentDifference > 0.5) { // Si la diferencia es mayor al 0.5%
+          console.warn(`⚠️ Conversion precision warning: ${amount} ${fromCurrency} -> ${result} ${toCurrency} -> ${backResult} ${fromCurrency} (${percentDifference.toFixed(3)}% difference)`);
+        }
+      }
+      
+      return result;
     } catch (error) {
       console.error(`Error converting ${amount} from ${fromCurrency} to ${toCurrency}:`, error);
       return amount; // Si falla la conversión, devolver el valor original
+    }
+  };
+
+  // Función de prueba para verificar conversiones
+  const testConversions = async () => {
+    console.log('🧪 Testing currency conversions...');
+    
+    const testCases = [
+      { amount: 100, from: 'USD', to: 'CLP' },
+      { amount: 80000, from: 'CLP', to: 'USD' },
+      { amount: 100, from: 'USD', to: 'EUR' },
+      { amount: 85, from: 'EUR', to: 'USD' },
+      { amount: 1000, from: 'USD', to: 'JPY' },
+      { amount: 110000, from: 'JPY', to: 'USD' }
+    ];
+    
+    for (const testCase of testCases) {
+      const result = await convertAmount(testCase.amount, testCase.from, testCase.to);
+      const backResult = await convertAmount(result, testCase.to, testCase.from);
+      const difference = Math.abs(testCase.amount - backResult);
+      const percentDifference = (difference / testCase.amount) * 100;
+      
+      console.log(`🧪 Test: ${testCase.amount} ${testCase.from} -> ${result} ${testCase.to} -> ${backResult} ${testCase.from} (${percentDifference.toFixed(3)}% difference)`);
     }
   };
 
@@ -333,14 +387,18 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const addAccount = (account: Omit<Account, 'id'>) => {
     setState(prev => ({
       ...prev,
-      accounts: [...prev.accounts, { ...account, id: Date.now().toString() }]
+      accounts: [...prev.accounts, { ...account, id: generateId() }]
     }));
+    // Sincronizar fondo de emergencia si es una cuenta de ahorro
+    if (account.type === 'savings') {
+      setTimeout(() => syncEmergencyFund(), 100);
+    }
   };
 
   const addBudget = (budget: Omit<Budget, 'id'>) => {
     setState(prev => ({
       ...prev,
-      budgets: [...prev.budgets, { ...budget, id: Date.now().toString() }]
+      budgets: [...prev.budgets, { ...budget, id: generateId() }]
     }));
   };
 
@@ -348,7 +406,7 @@ export function AppProvider({ children }: { children: ReactNode }) {
     setState(prev => {
       const newState = {
         ...prev,
-        expenses: [...prev.expenses, { ...expense, id: Date.now().toString() }]
+        expenses: [...prev.expenses, { ...expense, id: generateId() }]
       };
       
       // Actualizar el presupuesto correspondiente
@@ -363,38 +421,64 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const addAsset = (asset: Omit<Asset, 'id'>) => {
-    setState(prev => ({
-      ...prev,
-      assets: [...prev.assets, { ...asset, id: Date.now().toString() }]
-    }));
-  };
+  const addAsset = useCallback((asset: Omit<Asset, 'id'>) => {
+    setState(prev => {
+      let newAsset = { ...asset, id: generateId() };
+      
+      // Si es un activo del fondo de emergencia, configurar valores especiales
+      if (asset.groupId === 'emergency-fund') {
+        newAsset = {
+          ...newAsset,
+          currentPricePerUnit: 1,
+          purchasePricePerUnit: 1,
+          quantity: asset.value,
+          value: asset.value,
+          purchasePrice: asset.value
+        };
+      }
+      
+      const updatedAssets = [...prev.assets, newAsset];
+      
+      // Si se agregó un activo al fondo de emergencia, sincronizar las cuentas
+      if (asset.groupId === 'emergency-fund') {
+        const savingsAccounts = prev.accounts.filter(account => account.type === 'savings');
+        if (savingsAccounts.length > 0) {
+          const updatedAccounts = prev.accounts.map(account => 
+            account.id === savingsAccounts[0].id ? { ...account, balance: asset.value } : account
+          );
+          return { ...prev, assets: updatedAssets, accounts: updatedAccounts };
+        }
+      }
+      
+      return { ...prev, assets: updatedAssets };
+    });
+  }, []);
 
   const addAssetGroup = (group: Omit<AssetGroup, 'id'>) => {
     setState(prev => ({
       ...prev,
-      assetGroups: [...prev.assetGroups, { ...group, id: Date.now().toString() }]
+      assetGroups: [...prev.assetGroups, { ...group, id: generateId() }]
     }));
   };
 
   const addDebt = (debt: Omit<Debt, 'id'>) => {
     setState(prev => ({
       ...prev,
-      debts: [...prev.debts, { ...debt, id: Date.now().toString() }]
+      debts: [...prev.debts, { ...debt, id: generateId() }]
     }));
   };
 
   const addProperty = (property: Omit<Property, 'id'>) => {
     setState(prev => ({
       ...prev,
-      properties: [...prev.properties, { ...property, id: Date.now().toString() }]
+      properties: [...prev.properties, { ...property, id: generateId() }]
     }));
   };
 
   const addInterpersonalDebt = (debt: Omit<InterpersonalDebt, 'id'>) => {
     setState(prev => ({
       ...prev,
-      interpersonalDebts: [...prev.interpersonalDebts, { ...debt, id: Date.now().toString() }]
+      interpersonalDebts: [...prev.interpersonalDebts, { ...debt, id: generateId() }]
     }));
   };
 
@@ -410,12 +494,19 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Funciones de actualización
   const updateAccount = (id: string, updates: Partial<Account>) => {
-    setState(prev => ({
-      ...prev,
-      accounts: prev.accounts.map(account => 
+    setState(prev => {
+      const updatedAccounts = prev.accounts.map(account => 
         account.id === id ? { ...account, ...updates } : account
-      )
-    }));
+      );
+      return { ...prev, accounts: updatedAccounts };
+    });
+    
+    // Sincronizar fondo de emergencia si se modificó una cuenta de ahorro
+    // Solo si no es una actualización desde el fondo de emergencia
+    const account = state.accounts.find(acc => acc.id === id);
+    if (account?.type === 'savings') {
+      setTimeout(() => syncEmergencyFund(), 100);
+    }
   };
 
   const updateBudget = (id: string, updates: Partial<Budget>) => {
@@ -459,14 +550,48 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const updateAsset = (id: string, updates: Partial<Asset>) => {
-    setState(prev => ({
-      ...prev,
-      assets: prev.assets.map(asset => 
+  const updateAsset = useCallback((id: string, updates: Partial<Asset>) => {
+    setState(prev => {
+      const updatedAssets = prev.assets.map(asset => 
         asset.id === id ? { ...asset, ...updates } : asset
-      )
-    }));
-  };
+      );
+      
+      // Si se actualizó un activo del fondo de emergencia, sincronizar las cuentas
+      const updatedAsset = prev.assets.find(asset => asset.id === id);
+      if (updatedAsset?.groupId === 'emergency-fund') {
+        // Para el fondo de emergencia, usar el valor actualizado directamente
+        // y asegurar que los precios unitarios sean 1 para evitar cálculos incorrectos
+        let newEmergencyValue = updates.value !== undefined ? updates.value : updatedAsset.value;
+        
+        // Si se actualizó currentPricePerUnit, usar ese valor directamente
+        if (updates.currentPricePerUnit !== undefined) {
+          newEmergencyValue = updates.currentPricePerUnit;
+        }
+        
+        const savingsAccounts = prev.accounts.filter(account => account.type === 'savings');
+        if (savingsAccounts.length > 0) {
+          const updatedAccounts = prev.accounts.map(account => 
+            account.id === savingsAccounts[0].id ? { ...account, balance: newEmergencyValue } : account
+          );
+          
+          // Actualizar también el activo para que tenga valores consistentes
+          const finalUpdatedAssets = updatedAssets.map(asset => 
+            asset.id === id ? {
+              ...asset,
+              value: newEmergencyValue,
+              currentPricePerUnit: 1,
+              purchasePricePerUnit: 1,
+              quantity: newEmergencyValue
+            } : asset
+          );
+          
+          return { ...prev, assets: finalUpdatedAssets, accounts: updatedAccounts };
+        }
+      }
+      
+      return { ...prev, assets: updatedAssets };
+    });
+  }, []);
 
   const updateAssetGroup = (id: string, updates: Partial<AssetGroup>) => {
     setState(prev => ({
@@ -506,10 +631,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
 
   // Funciones de eliminación
   const deleteAccount = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      accounts: prev.accounts.filter(account => account.id !== id)
-    }));
+    setState(prev => {
+      const accountToDelete = prev.accounts.find(account => account.id === id);
+      const updatedAccounts = prev.accounts.filter(account => account.id !== id);
+      return { ...prev, accounts: updatedAccounts };
+    });
+    // Sincronizar fondo de emergencia si se eliminó una cuenta de ahorro
+    setTimeout(() => syncEmergencyFund(), 100);
   };
 
   const deleteBudget = (id: string) => {
@@ -539,22 +667,47 @@ export function AppProvider({ children }: { children: ReactNode }) {
     });
   };
 
-  const deleteAsset = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      assets: prev.assets.filter(asset => asset.id !== id)
-    }));
-  };
+  const deleteAsset = useCallback((id: string) => {
+    setState(prev => {
+      const assetToDelete = prev.assets.find(asset => asset.id === id);
+      const isEmergencyFundAsset = assetToDelete?.groupId === 'emergency-fund';
+      
+      const updatedAssets = prev.assets.filter(asset => asset.id !== id);
+      
+      // Si se eliminó un activo del fondo de emergencia, sincronizar las cuentas
+      if (isEmergencyFundAsset) {
+        const savingsAccounts = prev.accounts.filter(account => account.type === 'savings');
+        if (savingsAccounts.length > 0) {
+          const updatedAccounts = prev.accounts.map(account => 
+            account.id === savingsAccounts[0].id ? { ...account, balance: 0 } : account
+          );
+          return { ...prev, assets: updatedAssets, accounts: updatedAccounts };
+        }
+      }
+      
+      return { ...prev, assets: updatedAssets };
+    });
+  }, []);
 
   const deleteAssetGroup = (id: string) => {
-    setState(prev => ({
-      ...prev,
-      assetGroups: prev.assetGroups.filter(group => group.id !== id),
-      // Remover la asignación de grupo de todos los activos que pertenecían a este grupo
-      assets: prev.assets.map(asset => 
-        asset.groupId === id ? { ...asset, groupId: undefined } : asset
-      )
-    }));
+    setState(prev => {
+      const groupToDelete = prev.assetGroups.find(group => group.id === id);
+      
+      // No permitir eliminar grupos especiales como el fondo de emergencia
+      if (groupToDelete?.isSpecial) {
+        console.warn('No se puede eliminar un grupo especial');
+        return prev;
+      }
+      
+      return {
+        ...prev,
+        assetGroups: prev.assetGroups.filter(group => group.id !== id),
+        // Remover la asignación de grupo de todos los activos que pertenecían a este grupo
+        assets: prev.assets.map(asset => 
+          asset.groupId === id ? { ...asset, groupId: undefined } : asset
+        )
+      };
+    });
   };
 
   const deleteDebt = (id: string) => {
@@ -595,6 +748,100 @@ export function AppProvider({ children }: { children: ReactNode }) {
   const getUnassignedAssets = () => {
     return state.assets.filter(asset => !asset.groupId);
   };
+
+  // Función para obtener el valor del fondo de emergencia
+  const getEmergencyFundValue = useCallback(() => {
+    // Sumar todas las cuentas de ahorro (savings)
+    return state.accounts
+      .filter(account => account.type === 'savings')
+      .reduce((sum, account) => sum + Math.max(0, account.balance), 0);
+  }, [state.accounts]);
+
+  // Flag para evitar ejecuciones simultáneas de syncEmergencyFund
+  const isSyncingRef = useRef(false);
+
+  // Función para sincronizar el fondo de emergencia
+  // Función para limpiar activos duplicados de emergencia
+  const cleanDuplicateEmergencyAssets = useCallback(() => {
+    setState(prev => {
+      const emergencyAssets = prev.assets.filter(asset => asset.groupId === 'emergency-fund');
+      if (emergencyAssets.length > 1) {
+        console.log('🧹 Cleaning duplicate emergency assets:', emergencyAssets.length);
+        // Mantener solo el primer activo de emergencia
+        const firstEmergencyAsset = emergencyAssets[0];
+        const cleanedAssets = prev.assets.filter(asset => 
+          asset.groupId !== 'emergency-fund' || asset.id === firstEmergencyAsset.id
+        );
+        return { ...prev, assets: cleanedAssets };
+      }
+      return prev;
+    });
+  }, []);
+
+  const syncEmergencyFund = useCallback(() => {
+    console.log('🔄 syncEmergencyFund called');
+    
+    // Evitar ejecuciones simultáneas
+    if (isSyncingRef.current) {
+      console.log('⏳ syncEmergencyFund already running, skipping...');
+      return;
+    }
+    
+    isSyncingRef.current = true;
+    
+    const emergencyFundValue = getEmergencyFundValue();
+    console.log('💰 Emergency fund value:', emergencyFundValue);
+    
+    setState(prev => {
+      // Buscar todos los activos de fondo de emergencia
+      const emergencyAssets = prev.assets.filter(asset => asset.groupId === 'emergency-fund');
+      console.log('🔍 Found emergency assets:', emergencyAssets.length, emergencyAssets.map(a => a.id));
+      
+      let updatedAssets = [...prev.assets];
+      
+      // Si ya hay un activo de emergencia, solo actualizarlo
+      if (emergencyAssets.length > 0) {
+        const firstEmergencyAsset = emergencyAssets[0];
+        updatedAssets = updatedAssets.map(asset => 
+          asset.id === firstEmergencyAsset.id ? {
+            ...asset,
+            value: emergencyFundValue,
+            purchasePrice: emergencyFundValue,
+            quantity: emergencyFundValue,
+            currentPricePerUnit: 1,
+            purchasePricePerUnit: 1
+          } : asset
+        );
+        console.log('🔄 Updated existing emergency asset');
+      } else if (emergencyFundValue > 0) {
+        // Solo crear un nuevo activo si no existe y hay valor
+        const newEmergencyAsset: Asset = {
+          id: generateId(),
+          name: 'Fondo de Emergencia',
+          type: 'bonds',
+          value: emergencyFundValue,
+          purchasePrice: emergencyFundValue,
+          quantity: emergencyFundValue,
+          currency: prev.currency,
+          riskLevel: 'low',
+          purchaseDate: new Date().toISOString().split('T')[0],
+          reason: 'Fondo de emergencia - liquidez para gastos imprevistos',
+          groupId: 'emergency-fund',
+          currentPricePerUnit: 1,
+          purchasePricePerUnit: 1
+        };
+        console.log('🆕 Creating new emergency asset with ID:', newEmergencyAsset.id);
+        updatedAssets.push(newEmergencyAsset);
+      }
+      
+      return { ...prev, assets: updatedAssets };
+    });
+    
+    // Reset del flag después de completar
+    setTimeout(() => {
+      isSyncingRef.current = false;
+    }, 100);
+  }, [getEmergencyFundValue]);
 
   // Función para resetear todos los datos locales
   const resetAppData = () => {
@@ -674,9 +921,23 @@ export function AppProvider({ children }: { children: ReactNode }) {
       const loadedData = await loadAllAppData();
       
       if (loadedData) {
+        // Limpiar activos duplicados de emergencia antes de cargar
+        let cleanedAssets = loadedData.assets || [];
+        const emergencyAssets = cleanedAssets.filter((asset: any) => asset.groupId === 'emergency-fund');
+        
+        if (emergencyAssets.length > 1) {
+          console.log('🧹 Cleaning duplicate emergency assets:', emergencyAssets.length);
+          // Mantener solo el primer activo de emergencia
+          const firstEmergencyAsset = emergencyAssets[0];
+          cleanedAssets = cleanedAssets.filter((asset: any) => 
+            asset.groupId !== 'emergency-fund' || asset.id === firstEmergencyAsset.id
+          );
+        }
+        
         setState(prev => ({
           ...prev,
           ...loadedData,
+          assets: cleanedAssets,
           // Asegurar que todos los campos existen
           assetGroups: loadedData.assetGroups || prev.assetGroups,
           interpersonalDebts: (loadedData.interpersonalDebts || []).map((debt: any) => ({
@@ -689,6 +950,9 @@ export function AppProvider({ children }: { children: ReactNode }) {
         }));
         
         console.log('✅ Data loaded from Supabase successfully');
+        
+        // Limpiar activos duplicados después de cargar
+        setTimeout(() => cleanDuplicateEmergencyAssets(), 100);
       } else {
         console.log('📋 No data found in Supabase, using initial state');
       }
@@ -736,7 +1000,13 @@ export function AppProvider({ children }: { children: ReactNode }) {
     assignAssetToGroup,
     getAssetsByGroup,
     getUnassignedAssets,
+    getEmergencyFundValue,
+    syncEmergencyFund,
+    cleanDuplicateEmergencyAssets,
     resetAppData,
+    // Funciones de conversión
+    convertAmount,
+    testConversions,
   };
 
   return <AppContext.Provider value={value}>{children}</AppContext.Provider>;

@@ -15,12 +15,26 @@ const assetTypes = [
 const riskLevels = [
   { value: 'low', label: 'Bajo', color: 'green' },
   { value: 'medium', label: 'Medio', color: 'yellow' },
-  { value: 'high', label: 'Alto', color: 'red' }
+  { value: 'high', label: 'Alto', color: 'red' },
+  { value: 'very_high', label: 'Muy Alto', color: 'purple' }
 ];
 
 export function GroupDetail() {
   const { state, navigate, getAssetsByGroup, updateAsset, deleteAsset } = useApp();
   const { navigation, assetGroups } = state;
+
+  // Función helper para formatear monedas (los valores ya están convertidos en el estado)
+  const formatCurrency = (amount: number) => {
+    // Para USD, siempre usar formato inglés para consistencia
+    const locale = state.currency === 'USD' ? 'en-US' : (state.language === 'es' ? 'es-ES' : 'en-US');
+    
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
   
   const [editingAsset, setEditingAsset] = useState<any>(null);
   
@@ -110,6 +124,7 @@ export function GroupDetail() {
       case 'low': return 'text-green-600 bg-green-100';
       case 'medium': return 'text-yellow-600 bg-yellow-100';
       case 'high': return 'text-red-600 bg-red-100';
+      case 'very_high': return 'text-purple-600 bg-purple-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -173,7 +188,7 @@ export function GroupDetail() {
               <p className="text-sm text-gray-600">
                 {state.language === 'es' ? 'Valor Total' : 'Total Value'}
               </p>
-              <p className="text-2xl font-bold text-gray-900">${totalValue.toLocaleString()}</p>
+              <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalValue)}</p>
             </div>
             <DollarSign className="w-8 h-8 text-emerald-500" />
           </div>
@@ -186,7 +201,7 @@ export function GroupDetail() {
                 {state.language === 'es' ? 'Ganancia/Pérdida' : 'Gain/Loss'}
               </p>
               <p className={`text-2xl font-bold ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {totalGainLoss >= 0 ? '+' : ''}${totalGainLoss.toLocaleString()}
+                {totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totalGainLoss)}
               </p>
             </div>
             {totalGainLoss >= 0 ? (
@@ -254,7 +269,7 @@ export function GroupDetail() {
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-2xl font-bold text-gray-900">${totalValue.toLocaleString()}</p>
+                  <p className="text-2xl font-bold text-gray-900">{formatCurrency(totalValue)}</p>
                   <p className="text-sm text-gray-600">
                     {state.language === 'es' ? 'Total' : 'Total'}
                   </p>
@@ -274,7 +289,7 @@ export function GroupDetail() {
                   <span className="font-medium text-gray-700">{item.name}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-gray-900 font-semibold">${item.currentValue.toLocaleString()}</span>
+                  <span className="text-gray-900 font-semibold">{formatCurrency(item.currentValue)}</span>
                   <span className="text-gray-500 text-sm ml-2">({item.percentage.toFixed(1)}%)</span>
                 </div>
               </div>
@@ -330,10 +345,10 @@ export function GroupDetail() {
                     </div>
                     <div className="text-right">
                       <p className="text-xl font-bold text-gray-900">
-                        ${calc.currentValue.toLocaleString()}
+                        {formatCurrency(calc.currentValue)}
                       </p>
                       <div className={`text-sm font-medium ${calc.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        <p>{calc.gainLoss >= 0 ? '+' : ''}${calc.gainLoss.toLocaleString()}</p>
+                        <p>{calc.gainLoss >= 0 ? '+' : ''}{formatCurrency(calc.gainLoss)}</p>
                         <p>{calc.gainLoss >= 0 ? '+' : ''}{calc.gainLossPercentage.toFixed(1)}%</p>
                       </div>
                     </div>
@@ -406,7 +421,7 @@ export function GroupDetail() {
                   </div>
                   
                   <div className="text-center">
-                    <p className="text-xl font-bold text-gray-900">${calc.currentValue.toLocaleString()}</p>
+                    <p className="text-xl font-bold text-gray-900">{formatCurrency(calc.currentValue)}</p>
                     <div className="flex items-center justify-center space-x-2 mt-1">
                       {calc.gainLoss >= 0 ? (
                         <TrendingUp className="w-4 h-4 text-green-500" />
@@ -415,7 +430,7 @@ export function GroupDetail() {
                       )}
                       <div className="text-center">
                         <span className={`font-semibold ${calc.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                          {calc.gainLoss >= 0 ? '+' : ''}${calc.gainLoss.toLocaleString()}
+                          {calc.gainLoss >= 0 ? '+' : ''}{formatCurrency(calc.gainLoss)}
                         </span>
                         <span className={`text-sm ml-2 ${calc.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           ({calc.gainLoss >= 0 ? '+' : ''}{calc.gainLossPercentage.toFixed(1)}%)

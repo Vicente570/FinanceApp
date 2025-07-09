@@ -4,6 +4,7 @@ import { Card } from '../../Common/Card';
 import { Button } from '../../Common/Button';
 import { EditModal } from '../../Common/EditModal';
 import { Plus, Home, Building, Landmark, CreditCard, Edit, TrendingUp, TrendingDown } from 'lucide-react';
+import { AppleSelect } from '../../Common/AppleSelect';
 
 const debtTypes = [
   { value: 'mortgage', label: 'Hipoteca' },
@@ -23,6 +24,19 @@ const propertyTypes = [
 export function DebtsAndAssets() {
   const { state, addDebt, addProperty, updateDebt, updateProperty, deleteDebt, deleteProperty } = useApp();
   const { debts, properties } = state;
+
+  // Función helper para formatear monedas (los valores ya están convertidos en el estado)
+  const formatCurrency = (amount: number) => {
+    // Para USD, siempre usar formato inglés para consistencia
+    const locale = state.currency === 'USD' ? 'en-US' : (state.language === 'es' ? 'es-ES' : 'en-US');
+    
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
   
   const [showAddDebt, setShowAddDebt] = useState(false);
   const [showAddProperty, setShowAddProperty] = useState(false);
@@ -146,7 +160,7 @@ export function DebtsAndAssets() {
                 {state.language === 'es' ? 'Deudas Totales' : 'Total Debts'}
               </p>
               <p className="text-2xl font-bold text-red-600">
-                ${totalDebtAmount.toLocaleString()}
+                {formatCurrency(totalDebtAmount)}
               </p>
             </div>
             <CreditCard className="w-8 h-8 text-red-500" />
@@ -160,7 +174,7 @@ export function DebtsAndAssets() {
                 {state.language === 'es' ? 'Pagos Mensuales' : 'Monthly Payments'}
               </p>
               <p className="text-2xl font-bold text-orange-600">
-                ${totalMonthlyPayments.toLocaleString()}
+                {formatCurrency(totalMonthlyPayments)}
               </p>
             </div>
             <Landmark className="w-8 h-8 text-orange-500" />
@@ -174,7 +188,7 @@ export function DebtsAndAssets() {
                 {state.language === 'es' ? 'Valor Propiedades' : 'Property Value'}
               </p>
               <p className="text-2xl font-bold text-green-600">
-                ${totalPropertyValue.toLocaleString()}
+                {formatCurrency(totalPropertyValue)}
               </p>
             </div>
             <Home className="w-8 h-8 text-green-500" />
@@ -188,7 +202,7 @@ export function DebtsAndAssets() {
                 {state.language === 'es' ? 'Ganancia Propiedades' : 'Property Gain'}
               </p>
               <p className={`text-2xl font-bold ${propertyGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {propertyGainLoss >= 0 ? '+' : ''}${propertyGainLoss.toLocaleString()}
+                {propertyGainLoss >= 0 ? '+' : ''}{formatCurrency(propertyGainLoss)}
               </p>
             </div>
             {propertyGainLoss >= 0 ? (
@@ -228,15 +242,13 @@ export function DebtsAndAssets() {
                   onChange={(e) => setNewDebt({ ...newDebt, name: e.target.value })}
                   className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
                 />
-                <select
+                <AppleSelect
                   value={newDebt.type}
-                  onChange={(e) => setNewDebt({ ...newDebt, type: e.target.value as any })}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-red-500 focus:border-red-500"
-                >
-                  {debtTypes.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
+                  onChange={val => setNewDebt({ ...newDebt, type: val })}
+                  options={debtTypes}
+                  placeholder={state.language === 'es' ? 'Tipo de deuda' : 'Debt type'}
+                  className="w-full"
+                />
                 <input
                   type="number"
                   placeholder={state.language === 'es' ? 'Monto total' : 'Total amount'}
@@ -306,7 +318,7 @@ export function DebtsAndAssets() {
                       {state.language === 'es' ? 'Monto total:' : 'Total amount:'}
                     </span>
                     <span className="font-semibold text-red-600">
-                      ${debt.amount.toLocaleString()}
+                      {formatCurrency(debt.amount)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -314,7 +326,7 @@ export function DebtsAndAssets() {
                       {state.language === 'es' ? 'Pago mensual:' : 'Monthly payment:'}
                     </span>
                     <span className="font-medium text-gray-900">
-                      ${debt.monthlyPayment.toLocaleString()}
+                      {formatCurrency(debt.monthlyPayment)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -360,15 +372,13 @@ export function DebtsAndAssets() {
                   onChange={(e) => setNewProperty({ ...newProperty, name: e.target.value })}
                   className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
                 />
-                <select
+                <AppleSelect
                   value={newProperty.type}
-                  onChange={(e) => setNewProperty({ ...newProperty, type: e.target.value as any })}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-green-500 focus:border-green-500"
-                >
-                  {propertyTypes.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
+                  onChange={val => setNewProperty({ ...newProperty, type: val })}
+                  options={propertyTypes}
+                  placeholder={state.language === 'es' ? 'Tipo de propiedad' : 'Property type'}
+                  className="w-full"
+                />
                 <input
                   type="number"
                   placeholder={state.language === 'es' ? 'Valor actual' : 'Current value'}
@@ -448,7 +458,7 @@ export function DebtsAndAssets() {
                       {state.language === 'es' ? 'Valor actual:' : 'Current value:'}
                     </span>
                     <span className="font-semibold text-green-600">
-                      ${property.value.toLocaleString()}
+                      {formatCurrency(property.value)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -456,7 +466,7 @@ export function DebtsAndAssets() {
                       {state.language === 'es' ? 'Precio compra:' : 'Purchase price:'}
                     </span>
                     <span className="font-medium text-gray-900">
-                      ${property.purchasePrice.toLocaleString()}
+                      {formatCurrency(property.purchasePrice)}
                     </span>
                   </div>
                   <div className="flex justify-between">
@@ -465,7 +475,7 @@ export function DebtsAndAssets() {
                     </span>
                     <div className="text-right">
                       <span className={`font-medium ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                        {gainLoss >= 0 ? '+' : ''}${gainLoss.toLocaleString()}
+                        {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
                       </span>
                       <span className={`text-xs ml-2 ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                         ({gainLoss >= 0 ? '+' : ''}{gainLossPercentage.toFixed(1)}%)

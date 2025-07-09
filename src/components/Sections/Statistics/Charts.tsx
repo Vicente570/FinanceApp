@@ -1,21 +1,25 @@
 import React from 'react';
 import { useApp } from '../../../context/AppContext';
 import { Card } from '../../Common/Card';
+import { ExpenseTrendChart } from './ExpenseTrendChart';
 
 export function Charts() {
   const { state } = useApp();
   const { expenses, budgets } = state;
+  
+  // Función helper para formatear monedas
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat(state.language === 'es' ? 'es-ES' : 'en-US', {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
 
   // Gastos por categoría
   const expensesByCategory = expenses.reduce((acc, expense) => {
     acc[expense.category] = (acc[expense.category] || 0) + expense.amount;
-    return acc;
-  }, {} as Record<string, number>);
-
-  // Gastos por mes (últimos 6 meses)
-  const monthlyExpenses = expenses.reduce((acc, expense) => {
-    const month = new Date(expense.date).toLocaleDateString(state.language === 'es' ? 'es-ES' : 'en-US', { month: 'short', year: 'numeric' });
-    acc[month] = (acc[month] || 0) + expense.amount;
     return acc;
   }, {} as Record<string, number>);
 
@@ -54,6 +58,9 @@ export function Charts() {
       <h2 className="text-2xl font-bold text-gray-900">
         {state.language === 'es' ? 'Gráficos Financieros' : 'Financial Charts'}
       </h2>
+
+      {/* Gráfico de Tendencia de Gastos */}
+      <ExpenseTrendChart />
 
       {/* Gastos por Categoría - Gráfico de Torta */}
       <Card>
@@ -97,7 +104,7 @@ export function Charts() {
               </svg>
               <div className="absolute inset-0 flex items-center justify-center">
                 <div className="text-center">
-                  <p className="text-xl font-bold text-gray-900">${totalExpenses.toLocaleString()}</p>
+                  <p className="text-xl font-bold text-gray-900">{formatCurrency(totalExpenses)}</p>
                   <p className="text-sm text-gray-600">
                     {state.language === 'es' ? 'Total' : 'Total'}
                   </p>
@@ -118,7 +125,7 @@ export function Charts() {
                   <span className="font-medium text-gray-700">{item.category}</span>
                 </div>
                 <div className="text-right">
-                  <span className="text-gray-900 font-semibold">${item.amount.toLocaleString()}</span>
+                  <span className="text-gray-900 font-semibold">{formatCurrency(item.amount)}</span>
                   <span className="text-gray-500 text-sm ml-2">({item.percentage.toFixed(1)}%)</span>
                 </div>
               </div>
@@ -138,7 +145,7 @@ export function Charts() {
               <div className="flex justify-between">
                 <span className="font-medium text-gray-700">{item.category}</span>
                 <span className="text-sm text-gray-600">
-                  ${item.spent.toLocaleString()} / ${item.allocated.toLocaleString()}
+                  {formatCurrency(item.spent)} / {formatCurrency(item.allocated)}
                 </span>
               </div>
               <div className="w-full bg-gray-200 rounded-full h-3">
@@ -163,33 +170,7 @@ export function Charts() {
         </div>
       </Card>
 
-      {/* Gastos Mensuales */}
-      <Card>
-        <h3 className="text-lg font-semibold text-gray-900 mb-4">
-          {state.language === 'es' ? 'Tendencia de Gastos Mensuales' : 'Monthly Expense Trends'}
-        </h3>
-        <div className="space-y-4">
-          {Object.entries(monthlyExpenses).map(([month, amount]) => {
-            const maxAmount = Math.max(...Object.values(monthlyExpenses));
-            const percentage = (amount / maxAmount) * 100;
-            
-            return (
-              <div key={month} className="space-y-2">
-                <div className="flex justify-between">
-                  <span className="font-medium text-gray-700">{month}</span>
-                  <span className="text-gray-900">${amount.toLocaleString()}</span>
-                </div>
-                <div className="w-full bg-gray-200 rounded-full h-3">
-                  <div
-                    className="bg-gradient-to-r from-emerald-500 to-blue-500 h-3 rounded-full transition-all duration-500"
-                    style={{ width: `${percentage}%` }}
-                  />
-                </div>
-              </div>
-            );
-          })}
-        </div>
-      </Card>
+
     </div>
   );
 }

@@ -6,6 +6,16 @@ import { TrendingUp, TrendingDown, DollarSign, Calendar, Target, Users } from 'l
 export function DetailedStatistics() {
   const { state } = useApp();
   const { expenses, budgets, accounts, assets, debts, properties, interpersonalDebts } = state;
+  
+  // Función helper para formatear monedas
+  const formatCurrency = (amount: number) => {
+    return new Intl.NumberFormat(state.language === 'es' ? 'es-ES' : 'en-US', {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
 
   // Análisis de gastos
   const expensesByCategory = expenses.reduce((acc, expense) => {
@@ -83,7 +93,7 @@ export function DetailedStatistics() {
             </div>
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Patrimonio Neto' : 'Net Worth'}</p>
             <p className={`text-2xl font-bold ${netWorth >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${netWorth.toLocaleString()}
+              {formatCurrency(netWorth)}
             </p>
           </div>
           
@@ -92,7 +102,7 @@ export function DetailedStatistics() {
               <TrendingUp className="w-6 h-6 text-blue-500" />
             </div>
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Activos Totales' : 'Total Assets'}</p>
-            <p className="text-2xl font-bold text-blue-600">${totalAssets.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-blue-600">{formatCurrency(totalAssets)}</p>
           </div>
           
           <div className="text-center">
@@ -100,7 +110,7 @@ export function DetailedStatistics() {
               <TrendingDown className="w-6 h-6 text-red-500" />
             </div>
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Pasivos Totales' : 'Total Liabilities'}</p>
-            <p className="text-2xl font-bold text-red-600">${totalLiabilities.toLocaleString()}</p>
+            <p className="text-2xl font-bold text-red-600">{formatCurrency(totalLiabilities)}</p>
           </div>
           
           <div className="text-center">
@@ -109,7 +119,7 @@ export function DetailedStatistics() {
             </div>
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Flujo Mensual' : 'Monthly Cash Flow'}</p>
             <p className={`text-2xl font-bold ${monthlyCashFlow >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              ${monthlyCashFlow.toLocaleString()}
+              {formatCurrency(monthlyCashFlow)}
             </p>
           </div>
         </div>
@@ -123,11 +133,11 @@ export function DetailedStatistics() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="text-center">
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Gastos Totales' : 'Total Expenses'}</p>
-            <p className="text-xl font-bold text-red-600">${totalExpenses.toLocaleString()}</p>
+            <p className="text-xl font-bold text-red-600">{formatCurrency(totalExpenses)}</p>
           </div>
           <div className="text-center">
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Promedio Diario' : 'Daily Average'}</p>
-            <p className="text-xl font-bold text-orange-600">${averageExpensePerDay.toFixed(0)}</p>
+            <p className="text-xl font-bold text-orange-600">{formatCurrency(averageExpensePerDay)}</p>
           </div>
           <div className="text-center">
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Categorías' : 'Categories'}</p>
@@ -147,7 +157,7 @@ export function DetailedStatistics() {
                 <div key={category} className="space-y-1">
                   <div className="flex justify-between">
                     <span className="font-medium text-gray-700">{category}</span>
-                    <span className="text-gray-900">${amount.toLocaleString()} ({percentage.toFixed(1)}%)</span>
+                    <span className="text-gray-900">{formatCurrency(amount)} ({percentage.toFixed(1)}%)</span>
                   </div>
                   <div className="w-full bg-gray-200 rounded-full h-2">
                     <div
@@ -169,11 +179,11 @@ export function DetailedStatistics() {
         <div className="grid grid-cols-1 md:grid-cols-3 gap-6 mb-6">
           <div className="text-center">
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Presupuesto Total' : 'Total Budget'}</p>
-            <p className="text-xl font-bold text-blue-600">${totalBudgetAllocated.toLocaleString()}</p>
+            <p className="text-xl font-bold text-blue-600">{formatCurrency(totalBudgetAllocated)}</p>
           </div>
           <div className="text-center">
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Gastado' : 'Spent'}</p>
-            <p className="text-xl font-bold text-orange-600">${totalBudgetSpent.toLocaleString()}</p>
+            <p className="text-xl font-bold text-orange-600">{formatCurrency(totalBudgetSpent)}</p>
           </div>
           <div className="text-center">
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Utilización' : 'Utilization'}</p>
@@ -193,7 +203,7 @@ export function DetailedStatistics() {
                 <span className="font-medium text-gray-700">{budget.category}</span>
                 <div className="flex items-center space-x-2">
                   <span className="text-sm text-gray-600">
-                    ${budget.spent.toLocaleString()} / ${budget.allocated.toLocaleString()}
+                    {formatCurrency(budget.spent)} / {formatCurrency(budget.allocated)}
                   </span>
                   <span className={`px-2 py-1 rounded-full text-xs font-medium ${
                     budget.status === 'exceeded' ? 'bg-red-100 text-red-700' :
@@ -232,7 +242,7 @@ export function DetailedStatistics() {
               <Target className="w-6 h-6 text-blue-500" />
             </div>
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Valor Actual' : 'Current Value'}</p>
-            <p className="text-xl font-bold text-blue-600">${investmentAssets.toLocaleString()}</p>
+            <p className="text-xl font-bold text-blue-600">{formatCurrency(investmentAssets)}</p>
           </div>
           
           <div className="text-center">
@@ -240,7 +250,7 @@ export function DetailedStatistics() {
               <DollarSign className="w-6 h-6 text-gray-500" />
             </div>
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Costo Total' : 'Total Cost'}</p>
-            <p className="text-xl font-bold text-gray-600">${investmentCost.toLocaleString()}</p>
+            <p className="text-xl font-bold text-gray-600">{formatCurrency(investmentCost)}</p>
           </div>
           
           <div className="text-center">
@@ -253,7 +263,7 @@ export function DetailedStatistics() {
             </div>
             <p className="text-sm text-gray-600">{state.language === 'es' ? 'Ganancia/Pérdida' : 'Gain/Loss'}</p>
             <p className={`text-xl font-bold ${investmentGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-              {investmentGainLoss >= 0 ? '+' : ''}${investmentGainLoss.toLocaleString()}
+              {investmentGainLoss >= 0 ? '+' : ''}{formatCurrency(investmentGainLoss)}
             </p>
           </div>
           
@@ -281,7 +291,7 @@ export function DetailedStatistics() {
                 <Users className="w-6 h-6 text-red-500" />
               </div>
               <p className="text-sm text-gray-600">{state.language === 'es' ? 'Debes' : 'You Owe'}</p>
-              <p className="text-xl font-bold text-red-600">${interpersonalOwed.toLocaleString()}</p>
+              <p className="text-xl font-bold text-red-600">{formatCurrency(interpersonalOwed)}</p>
             </div>
             
             <div className="text-center">
@@ -289,7 +299,7 @@ export function DetailedStatistics() {
                 <Users className="w-6 h-6 text-green-500" />
               </div>
               <p className="text-sm text-gray-600">{state.language === 'es' ? 'Te Deben' : 'They Owe You'}</p>
-              <p className="text-xl font-bold text-green-600">${interpersonalOwing.toLocaleString()}</p>
+              <p className="text-xl font-bold text-green-600">{formatCurrency(interpersonalOwing)}</p>
             </div>
             
             <div className="text-center">
@@ -298,7 +308,7 @@ export function DetailedStatistics() {
               </div>
               <p className="text-sm text-gray-600">{state.language === 'es' ? 'Balance Neto' : 'Net Balance'}</p>
               <p className={`text-xl font-bold ${(interpersonalOwing - interpersonalOwed) >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                ${(interpersonalOwing - interpersonalOwed).toLocaleString()}
+                {formatCurrency(interpersonalOwing - interpersonalOwed)}
               </p>
             </div>
           </div>

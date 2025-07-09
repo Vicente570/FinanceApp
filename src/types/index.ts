@@ -31,7 +31,7 @@ export interface Asset {
   purchasePrice: number; // Valor total de compra (precio compra × cantidad)
   quantity: number;
   currency: string;
-  riskLevel: 'low' | 'medium' | 'high';
+  riskLevel: 'low' | 'medium' | 'high' | 'very_high';
   purchaseDate?: string;
   reason?: string;
   groupId?: string;
@@ -48,6 +48,7 @@ export interface AssetGroup {
   description?: string;
   color: string;
   createdDate: string;
+  isSpecial?: boolean; // Para grupos especiales como el fondo de emergencia
 }
 
 export interface Debt {

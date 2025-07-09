@@ -191,40 +191,7 @@ export function RealTimeIndicator({
             </div>
           </div>
 
-          {/* Horario de actualizaciones */}
-          {schedule.length > 0 && (
-            <div className="bg-white rounded-lg p-3 border border-gray-200">
-              <div className="flex items-center space-x-2 mb-3">
-                <Calendar className="w-4 h-4 text-purple-600" />
-                <h4 className="font-medium text-gray-900">
-                  {language === 'es' ? 'Horario de Actualizaciones' : 'Update Schedule'}
-                </h4>
-              </div>
-              <div className="grid grid-cols-1 md:grid-cols-2 gap-2 max-h-32 overflow-y-auto">
-                {schedule.slice(0, 8).map((item, index) => {
-                  const timeUntilUpdate = Math.max(0, item.nextUpdateTime - Date.now());
-                  const minutesUntil = Math.ceil(timeUntilUpdate / 60000);
-                  
-                  return (
-                    <div key={item.assetId} className="flex items-center justify-between text-xs p-2 bg-gray-50 rounded">
-                      <span className="font-mono font-medium text-gray-700">{item.symbol}</span>
-                      <span className={`${
-                        minutesUntil <= 1 ? 'text-green-600 font-bold' : 
-                        minutesUntil <= 5 ? 'text-yellow-600' : 'text-gray-500'
-                      }`}>
-                        {minutesUntil <= 0 ? (language === 'es' ? 'Ahora' : 'Now') : `${minutesUntil}min`}
-                      </span>
-                    </div>
-                  );
-                })}
-              </div>
-              {schedule.length > 8 && (
-                <p className="text-xs text-gray-500 text-center mt-2">
-                  {language === 'es' ? `... y ${schedule.length - 8} más` : `... and ${schedule.length - 8} more`}
-                </p>
-              )}
-            </div>
-          )}
+
 
           {/* Última actualización */}
           {lastUpdate && (

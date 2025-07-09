@@ -1,10 +1,11 @@
-import React, { useState, useEffect } from 'react';
+import React, { useState, useEffect, useCallback } from 'react';
 import { useApp } from '../../../context/AppContext';
 import { Card } from '../../Common/Card';
 import { Button } from '../../Common/Button';
 import { EditModal } from '../../Common/EditModal';
 import { StockSelector } from '../../Common/StockSelector';
 import { RealTimeIndicator } from '../../Common/RealTimeIndicator';
+import { AppleSelect } from '../../Common/AppleSelect';
 import { Plus, TrendingUp, TrendingDown, Edit, Folder, FolderOpen, Users, BarChart3, ArrowRight, Calculator, RefreshCw, Wifi, WifiOff, Settings } from 'lucide-react';
 import { stockApiService, StockData } from '../../../services/stockApi';
 import { useRealTimeStocks } from '../../../hooks/useRealTimeStocks';
@@ -19,7 +20,8 @@ const assetTypes = [
 const riskLevels = [
   { value: 'low', label: 'Bajo', color: 'green' },
   { value: 'medium', label: 'Medio', color: 'yellow' },
-  { value: 'high', label: 'Alto', color: 'red' }
+  { value: 'high', label: 'Alto', color: 'red' },
+  { value: 'very_high', label: 'Muy Alto', color: 'purple' }
 ];
 
 const groupColors = [
@@ -38,9 +40,24 @@ export function Assets() {
     assignAssetToGroup,
     getAssetsByGroup,
     getUnassignedAssets,
+    getEmergencyFundValue,
+    syncEmergencyFund,
     navigate
   } = useApp();
   const { assets, assetGroups } = state;
+
+  // Función helper para formatear monedas (los valores ya están convertidos en el estado)
+  const formatCurrency = (amount: number) => {
+    // Para USD, siempre usar formato inglés para consistencia
+    const locale = state.currency === 'USD' ? 'en-US' : (state.language === 'es' ? 'es-ES' : 'en-US');
+    
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
   
   const [showAddAsset, setShowAddAsset] = useState(false);
   const [showAddGroup, setShowAddGroup] = useState(false);
@@ -51,7 +68,11 @@ export function Assets() {
   const [showRealTimeSettings, setShowRealTimeSettings] = useState(false);
   const [realTimeSettings, setRealTimeSettings] = useState({
     enabled: true,
-    updateInterval: 60000 // 1 minuto por defecto
+    updateInterval: 600000 // 10 minutos por defecto
+  });
+  const [tempRealTimeSettings, setTempRealTimeSettings] = useState({
+    enabled: true,
+    updateInterval: 600000 // 10 minutos por defecto
   });
   
   const [newAsset, setNewAsset] = useState({
@@ -82,6 +103,28 @@ export function Assets() {
     updateInterval: realTimeSettings.updateInterval,
     enabled: realTimeSettings.enabled
   });
+
+  // Sincronizar fondo de emergencia solo al montar el componente
+  useEffect(() => {
+    // Limpiar activos duplicados de emergencia primero
+    const emergencyAssets = assets.filter(asset => asset.groupId === 'emergency-fund');
+    if (emergencyAssets.length > 1) {
+      console.log('🧹 Cleaning duplicate emergency assets on mount:', emergencyAssets.length);
+      // Eliminar todos los activos de emergencia duplicados
+      emergencyAssets.slice(1).forEach(asset => {
+        deleteAsset(asset.id);
+      });
+    }
+    
+    // Solo sincronizar si hay cuentas de ahorro y no hay activos de emergencia
+    const hasSavingsAccounts = state.accounts.some(account => account.type === 'savings');
+    const hasEmergencyAsset = assets.some(asset => asset.groupId === 'emergency-fund');
+    
+    if (hasSavingsAccounts && !hasEmergencyAsset) {
+      console.log('🔄 Initial sync of emergency fund');
+      syncEmergencyFund();
+    }
+  }, []); // Solo se ejecuta al montar el componente
 
   // Cálculos automáticos para el nuevo activo
   const totalPurchaseValue = newAsset.purchasePrice * newAsset.quantity;
@@ -189,6 +232,7 @@ export function Assets() {
       case 'low': return 'text-green-600 bg-green-100';
       case 'medium': return 'text-yellow-600 bg-yellow-100';
       case 'high': return 'text-red-600 bg-red-100';
+      case 'very_high': return 'text-purple-600 bg-purple-100';
       default: return 'text-gray-600 bg-gray-100';
     }
   };
@@ -237,6 +281,13 @@ export function Assets() {
   ];
 
   const unassignedAssets = getUnassignedAssets();
+
+  // Función para manejar la eliminación de grupos
+  const handleGroupDelete = () => {
+    if (editingGroup && editingGroup.isSpecial !== true) {
+      deleteAssetGroup(editingGroup.id);
+    }
+  };
 
   // Calcular estadísticas por grupo
   const getGroupStats = (groupId: string) => {
@@ -297,7 +348,10 @@ export function Assets() {
                 icon={Settings}
                 variant="ghost"
                 size="sm"
-                onClick={() => setShowRealTimeSettings(!showRealTimeSettings)}
+                onClick={() => {
+                  setTempRealTimeSettings(realTimeSettings);
+                  setShowRealTimeSettings(!showRealTimeSettings);
+                }}
               >
                 {state.language === 'es' ? 'Configurar' : 'Settings'}
               </Button>
@@ -344,8 +398,8 @@ export function Assets() {
                 <label className="flex items-center space-x-2">
                   <input
                     type="checkbox"
-                    checked={realTimeSettings.enabled}
-                    onChange={(e) => setRealTimeSettings(prev => ({ ...prev, enabled: e.target.checked }))}
+                    checked={tempRealTimeSettings.enabled}
+                    onChange={(e) => setTempRealTimeSettings(prev => ({ ...prev, enabled: !!e.target.checked }))}
                     className="rounded border-gray-300 text-blue-600 focus:ring-blue-500"
                   />
                   <span className="text-sm font-medium text-gray-700">
@@ -358,17 +412,17 @@ export function Assets() {
                 <label className="block text-sm font-medium text-gray-700 mb-1">
                   {state.language === 'es' ? 'Intervalo de actualización' : 'Update interval'}
                 </label>
-                <select
-                  value={realTimeSettings.updateInterval}
-                  onChange={(e) => setRealTimeSettings(prev => ({ ...prev, updateInterval: parseInt(e.target.value) }))}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  <option value={30000}>30 {state.language === 'es' ? 'segundos' : 'seconds'}</option>
-                  <option value={60000}>1 {state.language === 'es' ? 'minuto' : 'minute'}</option>
-                  <option value={300000}>5 {state.language === 'es' ? 'minutos' : 'minutes'}</option>
-                  <option value={600000}>10 {state.language === 'es' ? 'minutos' : 'minutes'}</option>
-                  <option value={1800000}>30 {state.language === 'es' ? 'minutos' : 'minutes'}</option>
-                </select>
+                <AppleSelect
+                  value={String(tempRealTimeSettings.updateInterval)}
+                  onChange={val => setTempRealTimeSettings(prev => ({ ...prev, updateInterval: Number(val) }))}
+                  options={[
+                    { value: '600000', label: `10 ${state.language === 'es' ? 'minutos' : 'minutes'}` },
+                    { value: '1200000', label: `20 ${state.language === 'es' ? 'minutos' : 'minutes'}` },
+                    { value: '1800000', label: `30 ${state.language === 'es' ? 'minutos' : 'minutes'}` },
+                  ]}
+                  placeholder={state.language === 'es' ? 'Intervalo' : 'Interval'}
+                  className="w-full"
+                />
               </div>
             </div>
             
@@ -376,10 +430,30 @@ export function Assets() {
               <p className="text-sm text-yellow-800">
                 <strong>{state.language === 'es' ? 'Nota:' : 'Note:'}</strong> {' '}
                 {state.language === 'es' 
-                  ? 'Las actualizaciones muy frecuentes pueden agotar los límites de las APIs gratuitas. Se recomienda 1-5 minutos para uso normal.'
-                  : 'Very frequent updates may exhaust free API limits. 1-5 minutes is recommended for normal use.'
+                  ? 'Las actualizaciones automáticas se realizan cada 10-30 minutos para respetar los límites de las APIs gratuitas.'
+                  : 'Automatic updates occur every 10-30 minutes to respect free API limits.'
                 }
               </p>
+            </div>
+            
+            <div className="flex justify-end space-x-2">
+              <Button
+                variant="ghost"
+                onClick={() => {
+                  setTempRealTimeSettings(realTimeSettings);
+                  setShowRealTimeSettings(false);
+                }}
+              >
+                {state.language === 'es' ? 'Cancelar' : 'Cancel'}
+              </Button>
+              <Button
+                onClick={() => {
+                  setRealTimeSettings(tempRealTimeSettings);
+                  setShowRealTimeSettings(false);
+                }}
+              >
+                {state.language === 'es' ? 'Aceptar' : 'Accept'}
+              </Button>
             </div>
           </div>
         </Card>
@@ -456,15 +530,13 @@ export function Assets() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {state.language === 'es' ? 'Tipo de activo' : 'Asset type'}
               </label>
-              <select
+              <AppleSelect
                 value={newAsset.type}
-                onChange={(e) => setNewAsset({ ...newAsset, type: e.target.value as any })}
+                onChange={val => setNewAsset({ ...newAsset, type: val as any })}
+                options={assetTypes}
+                placeholder={state.language === 'es' ? 'Tipo de activo' : 'Asset type'}
                 className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              >
-                {assetTypes.map(type => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
-                ))}
-              </select>
+              />
             </div>
 
             {/* Selector de acciones con API (solo para tipo 'stocks') */}
@@ -545,33 +617,52 @@ export function Assets() {
                 />
               </div>
               
-              <select
-                value={newAsset.riskLevel}
-                onChange={(e) => setNewAsset({ ...newAsset, riskLevel: e.target.value as any })}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              >
-                {riskLevels.map(level => (
-                  <option key={level.value} value={level.value}>{level.label}</option>
-                ))}
-              </select>
+              <div className="space-y-1">
+                <label className="text-sm font-medium text-gray-700">
+                  {state.language === 'es' ? 'Nivel de riesgo' : 'Risk level'}
+                </label>
+                <AppleSelect
+                  value={newAsset.riskLevel}
+                  onChange={(value) => setNewAsset({ ...newAsset, riskLevel: value as any })}
+                  options={riskLevels}
+                  placeholder={state.language === 'es' ? 'Seleccionar nivel de riesgo' : 'Select risk level'}
+                />
+                <p className="text-xs text-gray-500">
+                  {newAsset.riskLevel === 'low' && (
+                    state.language === 'es' 
+                      ? 'Bajo riesgo: Inversiones estables con menor volatilidad (ej: bonos gubernamentales, fondos indexados)'
+                      : 'Low risk: Stable investments with lower volatility (e.g., government bonds, index funds)'
+                  )}
+                  {newAsset.riskLevel === 'medium' && (
+                    state.language === 'es'
+                      ? 'Riesgo medio: Inversiones balanceadas con volatilidad moderada (ej: acciones de empresas establecidas)'
+                      : 'Medium risk: Balanced investments with moderate volatility (e.g., established company stocks)'
+                  )}
+                  {newAsset.riskLevel === 'high' && (
+                    state.language === 'es'
+                      ? 'Alto riesgo: Inversiones volátiles con mayor potencial de ganancia/pérdida (ej: criptomonedas, acciones de crecimiento)'
+                      : 'High risk: Volatile investments with higher profit/loss potential (e.g., cryptocurrencies, growth stocks)'
+                  )}
+                </p>
+              </div>
               
               <input
                 type="date"
-                value={newAsset.purchaseDate}
+                value={newAsset.purchaseDate || ''}
                 onChange={(e) => setNewAsset({ ...newAsset, purchaseDate: e.target.value })}
                 className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
               />
               
-              <select
+              <AppleSelect
                 value={newAsset.groupId}
-                onChange={(e) => setNewAsset({ ...newAsset, groupId: e.target.value })}
+                onChange={val => setNewAsset({ ...newAsset, groupId: val })}
+                options={[
+                  { value: '', label: state.language === 'es' ? 'Seleccionar grupo' : 'Select group' },
+                  ...assetGroups.map(group => ({ value: group.id, label: group.name }))
+                ]}
+                placeholder={state.language === 'es' ? 'Seleccionar grupo' : 'Select group'}
                 className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-              >
-                <option value="">{state.language === 'es' ? 'Seleccionar grupo' : 'Select group'}</option>
-                {assetGroups.map(group => (
-                  <option key={group.id} value={group.id}>{group.name}</option>
-                ))}
-              </select>
+              />
               
               <div className="md:col-span-2">
                 <input
@@ -594,14 +685,14 @@ export function Assets() {
                 <div className="grid grid-cols-2 md:grid-cols-4 gap-4 text-sm">
                   <div className="text-center">
                     <p className="text-gray-600">{state.language === 'es' ? 'Valor de Compra' : 'Purchase Value'}</p>
-                    <p className="font-bold text-gray-900">${totalPurchaseValue.toLocaleString()}</p>
+                    <p className="font-bold text-gray-900">{formatCurrency(totalPurchaseValue)}</p>
                     <p className="text-xs text-gray-500">
                       ${newAsset.purchasePrice} × {newAsset.quantity}
                     </p>
                   </div>
                   <div className="text-center">
                     <p className="text-gray-600">{state.language === 'es' ? 'Valor Actual' : 'Current Value'}</p>
-                    <p className="font-bold text-gray-900">${totalCurrentValue.toLocaleString()}</p>
+                    <p className="font-bold text-gray-900">{formatCurrency(totalCurrentValue)}</p>
                     <p className="text-xs text-gray-500">
                       ${newAsset.currentPrice} × {newAsset.quantity}
                     </p>
@@ -609,7 +700,7 @@ export function Assets() {
                   <div className="text-center">
                     <p className="text-gray-600">{state.language === 'es' ? 'Ganancia/Pérdida' : 'Gain/Loss'}</p>
                     <p className={`font-bold ${gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {gainLoss >= 0 ? '+' : ''}${gainLoss.toLocaleString()}
+                      {gainLoss >= 0 ? '+' : ''}{formatCurrency(gainLoss)}
                     </p>
                   </div>
                   <div className="text-center">
@@ -654,7 +745,14 @@ export function Assets() {
                       style={{ backgroundColor: group.color }}
                     />
                     <div>
-                      <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
+                      <div className="flex items-center space-x-2">
+                        <h3 className="text-lg font-semibold text-gray-900">{group.name}</h3>
+                        {group.isSpecial && (
+                          <span className="px-2 py-1 bg-red-100 text-red-700 text-xs font-medium rounded-full">
+                            {state.language === 'es' ? 'ESPECIAL' : 'SPECIAL'}
+                          </span>
+                        )}
+                      </div>
                       {group.description && (
                         <p className="text-sm text-gray-600">{group.description}</p>
                       )}
@@ -676,12 +774,14 @@ export function Assets() {
                     >
                       {isExpanded ? 'Ocultar' : 'Mostrar'} Activos
                     </Button>
-                    <button
-                      onClick={() => setEditingGroup(group)}
-                      className="p-1 hover:bg-gray-100 rounded transition-colors"
-                    >
-                      <Edit className="w-4 h-4 text-gray-500" />
-                    </button>
+                    {!group.isSpecial && (
+                      <button
+                        onClick={() => setEditingGroup(group)}
+                        className="p-1 hover:bg-gray-100 rounded transition-colors"
+                      >
+                        <Edit className="w-4 h-4 text-gray-500" />
+                      </button>
+                    )}
                   </div>
                 </div>
 
@@ -693,12 +793,12 @@ export function Assets() {
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-gray-600">{state.language === 'es' ? 'Valor Total' : 'Total Value'}</p>
-                    <p className="text-lg font-semibold text-gray-900">${stats.totalValue.toLocaleString()}</p>
+                    <p className="text-lg font-semibold text-gray-900">{formatCurrency(stats.totalValue)}</p>
                   </div>
                   <div className="text-center">
                     <p className="text-sm text-gray-600">{state.language === 'es' ? 'Ganancia/Pérdida' : 'Gain/Loss'}</p>
                     <p className={`text-lg font-semibold ${stats.totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                      {stats.totalGainLoss >= 0 ? '+' : ''}${stats.totalGainLoss.toLocaleString()}
+                      {stats.totalGainLoss >= 0 ? '+' : ''}{formatCurrency(stats.totalGainLoss)}
                     </p>
                   </div>
                   <div className="text-center">
@@ -728,9 +828,9 @@ export function Assets() {
                                   <h4 className="font-medium text-gray-900">{asset.name}</h4>
                                   {asset.type === 'stocks' && (
                                     asset.isConnectedToApi ? (
-                                      <Wifi className="w-4 h-4 text-green-500" title={state.language === 'es' ? 'Conectado a API' : 'Connected to API'} />
+                                      <Wifi className="w-4 h-4 text-green-500" />
                                     ) : (
-                                      <WifiOff className="w-4 h-4 text-orange-500" title={state.language === 'es' ? 'No conectado' : 'Not connected'} />
+                                      <WifiOff className="w-4 h-4 text-orange-500" />
                                     )
                                   )}
                                 </div>
@@ -768,7 +868,7 @@ export function Assets() {
                             </div>
                             
                             <div className="text-center">
-                              <p className="text-xl font-bold text-gray-900">${calc.currentValue.toLocaleString()}</p>
+                              <p className="text-xl font-bold text-gray-900">{formatCurrency(calc.currentValue)}</p>
                               <div className="flex items-center justify-center space-x-2 mt-1">
                                 {calc.gainLoss >= 0 ? (
                                   <TrendingUp className="w-4 h-4 text-green-500" />
@@ -777,7 +877,7 @@ export function Assets() {
                                 )}
                                 <div className="text-center">
                                   <span className={`font-semibold ${calc.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                                    {calc.gainLoss >= 0 ? '+' : ''}${calc.gainLoss.toLocaleString()}
+                                    {calc.gainLoss >= 0 ? '+' : ''}{formatCurrency(calc.gainLoss)}
                                   </span>
                                   <span className={`text-sm ml-2 ${calc.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                                     ({calc.gainLoss >= 0 ? '+' : ''}{calc.gainLossPercentage.toFixed(1)}%)
@@ -872,7 +972,7 @@ export function Assets() {
                       </div>
                       
                       <div className="text-center">
-                        <p className="text-lg font-bold text-gray-900">${calc.currentValue.toLocaleString()}</p>
+                        <p className="text-lg font-bold text-gray-900">{formatCurrency(calc.currentValue)}</p>
                         <div className="flex items-center justify-center space-x-2 mt-1">
                           {calc.gainLoss >= 0 ? (
                             <TrendingUp className="w-4 h-4 text-green-500" />
@@ -880,7 +980,7 @@ export function Assets() {
                             <TrendingDown className="w-4 h-4 text-red-500" />
                           )}
                           <span className={`text-sm font-medium ${calc.gainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                            {calc.gainLoss >= 0 ? '+' : ''}${calc.gainLoss.toLocaleString()} ({calc.gainLoss >= 0 ? '+' : ''}{calc.gainLossPercentage.toFixed(1)}%)
+                            {calc.gainLoss >= 0 ? '+' : ''}{formatCurrency(calc.gainLoss)} ({calc.gainLoss >= 0 ? '+' : ''}{calc.gainLossPercentage.toFixed(1)}%)
                           </span>
                         </div>
                       </div>
@@ -891,20 +991,18 @@ export function Assets() {
                           {state.language === 'es' ? 'Asignar a grupo:' : 'Assign to group:'}
                         </label>
                         <div className="flex space-x-2">
-                          <select
-                            onChange={(e) => {
-                              if (e.target.value) {
-                                handleAssignToGroup(asset.id, e.target.value);
-                              }
+                          <AppleSelect
+                            value={asset.groupId || ''}
+                            onChange={val => {
+                              if (val) handleAssignToGroup(asset.id, val);
                             }}
+                            options={[
+                              { value: '', label: state.language === 'es' ? 'Seleccionar...' : 'Select...' },
+                              ...assetGroups.map(group => ({ value: group.id, label: group.name }))
+                            ]}
+                            placeholder={state.language === 'es' ? 'Seleccionar...' : 'Select...'}
                             className="flex-1 text-xs border border-orange-300 rounded px-2 py-1 focus:ring-2 focus:ring-orange-500 focus:border-orange-500"
-                            defaultValue=""
-                          >
-                            <option value="">{state.language === 'es' ? 'Seleccionar...' : 'Select...'}</option>
-                            {assetGroups.map(group => (
-                              <option key={group.id} value={group.id}>{group.name}</option>
-                            ))}
-                          </select>
+                          />
                         </div>
                       </div>
                     </div>
@@ -941,7 +1039,7 @@ export function Assets() {
         isOpen={!!editingGroup}
         onClose={() => setEditingGroup(null)}
         onSave={(data) => updateAssetGroup(editingGroup.id, data)}
-        onDelete={() => deleteAssetGroup(editingGroup.id)}
+        onDelete={editingGroup && editingGroup.isSpecial !== true ? handleGroupDelete : undefined}
         title={state.language === 'es' ? 'Editar Grupo' : 'Edit Group'}
         data={editingGroup || {}}
         fields={groupEditFields}

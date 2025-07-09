@@ -68,12 +68,7 @@ export function ProfileSetupForm({ language }: ProfileSetupFormProps) {
         }
         return;
       } else {
-        if (result.message && result.message.toLowerCase().includes('ocupado')) {
-          setErrors(prev => ({ ...prev, username: result.message }));
-          return;
-        } else {
-          setMessage(result.message);
-        }
+        setMessage(result.message);
       }
     } catch (error) {
       setMessage(language === 'es' ? 'Error inesperado' : 'Unexpected error');
@@ -152,9 +147,7 @@ export function ProfileSetupForm({ language }: ProfileSetupFormProps) {
                   }`}
                   placeholder={language === 'es' ? 'usuario123' : 'user123'}
                 />
-                <p className="bg-red-100 border border-red-300 text-red-700 text-sm rounded-lg px-3 py-2 mt-2 font-semibold animate-pulse">
-                  El nombre de usuario debe ser otro ya que el que puso está ocupado
-                </p>
+                {errors.username && <p className="text-red-500 text-xs mt-1">{errors.username}</p>}
               </div>
 
               {/* Alias */}

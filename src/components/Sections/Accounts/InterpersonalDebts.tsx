@@ -3,7 +3,9 @@ import { useApp } from '../../../context/AppContext';
 import { Card } from '../../Common/Card';
 import { Button } from '../../Common/Button';
 import { EditModal } from '../../Common/EditModal';
-import { Plus, ArrowUp, ArrowDown, User, Edit, Check, X } from 'lucide-react';
+import { Plus, ArrowUp, ArrowDown, User, Edit, Check, X, SortAsc, SortDesc } from 'lucide-react';
+import { AppleSelect } from '../../Common/AppleSelect';
+import { formatCurrency } from '../../../utils/currencyUtils';
 
 const debtTypes = [
   { value: 'owe', label: 'Le debo' },
@@ -13,6 +15,15 @@ const debtTypes = [
 export function InterpersonalDebts() {
   const { state, addInterpersonalDebt, updateInterpersonalDebt, deleteInterpersonalDebt } = useApp();
   const { interpersonalDebts } = state;
+  
+  // Función helper para formatear monedas usando la utilidad centralizada
+  const formatCurrencyWithState = (amount: number) => {
+    return formatCurrency(amount, {
+      language: state.language as 'es' | 'en',
+      currency: state.currency
+    });
+  };
+  
   const [showAddDebt, setShowAddDebt] = useState(false);
   const [editingDebt, setEditingDebt] = useState<any>(null);
   const [newDebt, setNewDebt] = useState({
@@ -22,6 +33,8 @@ export function InterpersonalDebts() {
     description: '',
     date: new Date().toISOString().split('T')[0]
   });
+  const [sortBy, setSortBy] = useState<'date' | 'amount'>('date');
+  const [sortOrder, setSortOrder] = useState<'asc' | 'desc'>('desc');
 
   const handleAddDebt = () => {
     if (newDebt.name && newDebt.amount > 0 && newDebt.description) {
@@ -49,8 +62,23 @@ export function InterpersonalDebts() {
     updateInterpersonalDebt(debtId, { isSettled: !currentSettled });
   };
 
-  const activeDebts = interpersonalDebts.filter(debt => !debt.isSettled);
-  const settledDebts = interpersonalDebts.filter(debt => debt.isSettled);
+  // Función para ordenar las deudas
+  const sortDebts = (debts: any[]) => {
+    return [...debts].sort((a, b) => {
+      let comparison = 0;
+      
+      if (sortBy === 'date') {
+        comparison = new Date(a.date).getTime() - new Date(b.date).getTime();
+      } else if (sortBy === 'amount') {
+        comparison = a.amount - b.amount;
+      }
+      
+      return sortOrder === 'asc' ? comparison : -comparison;
+    });
+  };
+
+  const activeDebts = sortDebts(interpersonalDebts.filter(debt => !debt.isSettled));
+  const settledDebts = sortDebts(interpersonalDebts.filter(debt => debt.isSettled));
 
   const totalOwed = activeDebts
     .filter(debt => debt.type === 'owe')
@@ -79,7 +107,7 @@ export function InterpersonalDebts() {
                 {state.language === 'es' ? 'Debes' : 'You owe'}
               </p>
               <p className="text-2xl font-bold text-red-600">
-                ${totalOwed.toLocaleString()}
+                {formatCurrencyWithState(totalOwed)}
               </p>
             </div>
             <ArrowUp className="w-8 h-8 text-red-500" />
@@ -93,7 +121,7 @@ export function InterpersonalDebts() {
                 {state.language === 'es' ? 'Te deben' : 'They owe you'}
               </p>
               <p className="text-2xl font-bold text-green-600">
-                ${totalOwing.toLocaleString()}
+                {formatCurrencyWithState(totalOwing)}
               </p>
             </div>
             <ArrowDown className="w-8 h-8 text-green-500" />
@@ -135,15 +163,13 @@ export function InterpersonalDebts() {
                 onChange={(e) => setNewDebt({ ...newDebt, amount: parseFloat(e.target.value) || 0 })}
                 className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
-              <select
+              <AppleSelect
                 value={newDebt.type}
-                onChange={(e) => setNewDebt({ ...newDebt, type: e.target.value as 'owe' | 'owed' })}
-                className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {debtTypes.map(type => (
-                  <option key={type.value} value={type.value}>{type.label}</option>
-                ))}
-              </select>
+                onChange={val => setNewDebt({ ...newDebt, type: val as 'owe' | 'owed' })}
+                options={debtTypes}
+                placeholder={state.language === 'es' ? 'Tipo' : 'Type'}
+                className="w-full"
+              />
               <input
                 type="date"
                 value={newDebt.date}
@@ -177,9 +203,34 @@ export function InterpersonalDebts() {
 
       {/* Lista de deudas activas */}
       <div className="space-y-4">
-        <h3 className="text-lg font-semibold text-gray-900">
-          {state.language === 'es' ? 'Deudas Activas' : 'Active Debts'}
-        </h3>
+        <div className="flex justify-between items-center">
+          <h3 className="text-lg font-semibold text-gray-900">
+            {state.language === 'es' ? 'Deudas Activas' : 'Active Debts'}
+          </h3>
+          <div className="flex items-center space-x-4">
+            <AppleSelect
+              value={sortBy}
+              onChange={(value) => setSortBy(value as 'date' | 'amount')}
+              options={[
+                { value: 'date', label: state.language === 'es' ? 'Por fecha' : 'By date' },
+                { value: 'amount', label: state.language === 'es' ? 'Por monto' : 'By amount' }
+              ]}
+              placeholder={state.language === 'es' ? 'Ordenar por' : 'Sort by'}
+              className="w-32 h-8"
+            />
+            <button
+              onClick={() => setSortOrder(sortOrder === 'asc' ? 'desc' : 'asc')}
+              className="w-16 h-8 text-xs font-medium bg-gray-100 hover:bg-gray-200 rounded-lg transition-colors flex items-center justify-center border border-gray-300"
+              title={state.language === 'es' ? 'Cambiar orden' : 'Change order'}
+            >
+              {sortOrder === 'asc' ? (
+                state.language === 'es' ? '↑ Asc' : '↑ Asc'
+              ) : (
+                state.language === 'es' ? '↓ Desc' : '↓ Desc'
+              )}
+            </button>
+          </div>
+        </div>
         {activeDebts.map((debt) => (
           <Card key={debt.id}>
             <div className="flex items-center justify-between">
@@ -198,7 +249,7 @@ export function InterpersonalDebts() {
               <div className="flex items-center space-x-2">
                 <div className="text-right">
                   <p className={`font-semibold ${debt.type === 'owe' ? 'text-red-600' : 'text-green-600'}`}>
-                    {debt.type === 'owe' ? '-' : '+'}${debt.amount.toLocaleString()}
+                    {debt.type === 'owe' ? '-' : '+'}{formatCurrencyWithState(debt.amount)}
                   </p>
                   <p className="text-xs text-gray-500">
                     {debt.type === 'owe' 
@@ -251,9 +302,9 @@ export function InterpersonalDebts() {
                 </div>
                 <div className="flex items-center space-x-2">
                   <div className="text-right">
-                    <p className="font-semibold text-gray-500 line-through">
-                      {debt.type === 'owe' ? '-' : '+'}${debt.amount.toLocaleString()}
-                    </p>
+                                          <p className="font-semibold text-gray-500 line-through">
+                        {debt.type === 'owe' ? '-' : '+'}{formatCurrencyWithState(debt.amount)}
+                      </p>
                     <p className="text-xs text-green-600 font-medium">
                       ✓ {state.language === 'es' ? 'Saldada' : 'Settled'}
                     </p>

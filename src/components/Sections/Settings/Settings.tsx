@@ -6,6 +6,7 @@ import { Button } from '../../Common/Button';
 import { Globe, Palette, DollarSign, RefreshCw, TrendingUp, TrendingDown, Eye, EyeOff, User, UserCheck, Calendar, LogOut, Save, Settings as SettingsIcon } from 'lucide-react';
 import { exchangeRateApiService, ExchangeRate } from '../../../services/exchangeRateApi';
 import { supabase } from '../../../lib/supabase';
+import { AppleSelect } from '../../Common/AppleSelect';
 
 const currencies = [
   { code: 'USD', name: 'US Dollar', symbol: '$', flag: '🇺🇸' },
@@ -57,7 +58,7 @@ export function Settings() {
   });
   const [profileMessage, setProfileMessage] = useState('');
   const [showPassword, setShowPassword] = useState(false);
-  const [fakePassword, setFakePassword] = useState('mi_contraseña_secreta');
+  const [password, setPassword] = useState('');
   const [resetMessage, setResetMessage] = useState('');
 
   const currentCurrency = currencies.find(c => c.code === state.currency) || currencies[0];
@@ -177,17 +178,16 @@ export function Settings() {
                 <label className="block text-sm font-medium text-gray-700 mb-2">
                   {state.language === 'es' ? 'Seleccionar moneda base' : 'Select base currency'}
                 </label>
-                <select
+                <AppleSelect
                   value={state.currency}
-                  onChange={(e) => handleCurrencyChange(e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-emerald-500 focus:border-emerald-500"
-                >
-                  {currencies.map((currency) => (
-                    <option key={currency.code} value={currency.code}>
-                      {currency.flag} {currency.code} - {currency.name}
-                    </option>
-                  ))}
-                </select>
+                  onChange={handleCurrencyChange}
+                  options={currencies.map(currency => ({
+                    value: currency.code,
+                    label: `${currency.flag} ${currency.code} - ${currency.name}`
+                  }))}
+                  placeholder={state.language === 'es' ? 'Seleccionar moneda' : 'Select currency'}
+                  className="w-full"
+                />
               </div>
 
               {/* Botón para ver tipos de cambio */}
@@ -313,17 +313,16 @@ export function Settings() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {state.language === 'es' ? 'Seleccionar idioma' : 'Select language'}
               </label>
-              <select
+              <AppleSelect
                 value={state.language}
-                onChange={(e) => updateSettings({ language: e.target.value as 'es' | 'en' })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-              >
-                {languages.map((lang) => (
-                  <option key={lang.value} value={lang.value}>
-                    {lang.flag} {lang.label}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => updateSettings({ language: val as 'es' | 'en' })}
+                options={languages.map(lang => ({
+                  value: lang.value,
+                  label: `${lang.flag} ${lang.label}`
+                }))}
+                placeholder={state.language === 'es' ? 'Seleccionar idioma' : 'Select language'}
+                className="w-full"
+              />
             </div>
           </Card>
 
@@ -340,17 +339,16 @@ export function Settings() {
               <label className="block text-sm font-medium text-gray-700 mb-2">
                 {state.language === 'es' ? 'Seleccionar tema' : 'Select theme'}
               </label>
-              <select
+              <AppleSelect
                 value={state.theme}
-                onChange={(e) => updateSettings({ theme: e.target.value as 'light' | 'dark' | 'auto' })}
-                className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-purple-500 focus:border-purple-500"
-              >
-                {themes.map((theme) => (
-                  <option key={theme.value} value={theme.value}>
-                    {state.language === 'es' ? theme.label : theme.labelEn}
-                  </option>
-                ))}
-              </select>
+                onChange={(val) => updateSettings({ theme: val as 'light' | 'dark' | 'auto' })}
+                options={themes.map(theme => ({
+                  value: theme.value,
+                  label: state.language === 'es' ? theme.label : theme.labelEn
+                }))}
+                placeholder={state.language === 'es' ? 'Seleccionar tema' : 'Select theme'}
+                className="w-full"
+              />
             </div>
           </Card>
 
@@ -518,9 +516,10 @@ export function Settings() {
             <div className="flex items-center space-x-4">
               <input
                 type={showPassword ? 'text' : 'password'}
-                value={fakePassword}
-                readOnly
-                className="border border-gray-300 rounded-lg px-3 py-2 w-64"
+                value={password}
+                onChange={(e) => setPassword(e.target.value)}
+                placeholder={state.language === 'es' ? 'Coloca tu contraseña' : 'Enter your password'}
+                className="border border-gray-300 rounded-lg px-3 py-2 w-64 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
               />
               <Button
                 variant="outline"

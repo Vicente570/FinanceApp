@@ -13,6 +13,19 @@ export function InvestmentsOverview() {
   const { state, navigate } = useApp();
   const { assets, debts } = state;
 
+  // Función helper para formatear monedas (los valores ya están convertidos en el estado)
+  const formatCurrency = (amount: number) => {
+    // Para USD, siempre usar formato inglés para consistencia
+    const locale = state.currency === 'USD' ? 'en-US' : (state.language === 'es' ? 'es-ES' : 'en-US');
+    
+    return new Intl.NumberFormat(locale, {
+      style: 'currency',
+      currency: state.currency,
+      minimumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 2,
+      maximumFractionDigits: (state.currency === 'JPY' || state.currency === 'CLP') ? 0 : 4
+    }).format(amount);
+  };
+
   const totalInvestmentValue = assets.reduce((sum, asset) => sum + asset.value, 0);
   const totalInvestmentCost = assets.reduce((sum, asset) => sum + asset.purchasePrice, 0);
   const totalGainLoss = totalInvestmentValue - totalInvestmentCost;
@@ -27,7 +40,7 @@ export function InvestmentsOverview() {
             <div>
               <p className="text-sm text-gray-600">Valor Total</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${totalInvestmentValue.toLocaleString()}
+                {formatCurrency(totalInvestmentValue)}
               </p>
             </div>
             <DollarSign className="w-8 h-8 text-blue-500" />
@@ -37,9 +50,9 @@ export function InvestmentsOverview() {
         <Card>
           <div className="flex items-center justify-between">
             <div>
-              <p className="text-sm text-gray-600">Costo Total</p>
+              <p className="text-sm text-gray-600">Inversión Total</p>
               <p className="text-2xl font-bold text-gray-900">
-                ${totalInvestmentCost.toLocaleString()}
+                {formatCurrency(totalInvestmentCost)}
               </p>
             </div>
             <TrendingUp className="w-8 h-8 text-emerald-500" />
@@ -51,7 +64,7 @@ export function InvestmentsOverview() {
             <div>
               <p className="text-sm text-gray-600">Ganancia/Pérdida</p>
               <p className={`text-2xl font-bold ${totalGainLoss >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                {totalGainLoss >= 0 ? '+' : ''}${totalGainLoss.toLocaleString()}
+                {totalGainLoss >= 0 ? '+' : ''}{formatCurrency(totalGainLoss)}
               </p>
               <p className="text-xs text-gray-500">
                 {totalInvestmentCost > 0 ? ((totalGainLoss / totalInvestmentCost) * 100).toFixed(1) : 0}%
@@ -66,7 +79,7 @@ export function InvestmentsOverview() {
             <div>
               <p className="text-sm text-gray-600">Deudas Totales</p>
               <p className="text-2xl font-bold text-red-600">
-                ${totalDebtAmount.toLocaleString()}
+                {formatCurrency(totalDebtAmount)}
               </p>
             </div>
             <Target className="w-8 h-8 text-red-500" />

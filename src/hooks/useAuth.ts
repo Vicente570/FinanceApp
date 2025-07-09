@@ -39,64 +39,75 @@ export function useAuth() {
   });
   const [actionLoading, setActionLoading] = useState(false);
   const [authError, setAuthError] = useState<string | null>(null);
+  const [isLoadingProfile, setIsLoadingProfile] = useState(false);
 
   // Utilidad para forzar carga de perfil con reintentos
-  const fetchProfileWithRetry = async (userId: string, maxTries = 3, delayMs = 1000) => {
+  const fetchProfileWithRetry = async (userId: string, maxTries = 2, delayMs = 500) => {
+    if (isLoadingProfile) {
+      console.log('[DEBUG] Ya se está cargando el perfil, saltando llamada duplicada');
+      return { profile: null, error: new Error('Carga en progreso') };
+    }
+    
+    setIsLoadingProfile(true);
     console.log(`[DEBUG] fetchProfileWithRetry iniciado para userId=${userId}`);
     let lastError = null;
     
-    for (let i = 0; i < maxTries; i++) {
-      console.log(`[DEBUG] Intento ${i + 1}/${maxTries} de cargar perfil`);
-      
-      try {
-        console.log(`[DEBUG] Ejecutando consulta Supabase para intento ${i + 1}`);
+    try {
+      for (let i = 0; i < maxTries; i++) {
+        console.log(`[DEBUG] Intento ${i + 1}/${maxTries} de cargar perfil`);
         
-        // Agregar timeout a la consulta
-        const timeoutPromise = new Promise((_, reject) => {
-          setTimeout(() => reject(new Error('Timeout en consulta Supabase')), 5000);
-        });
-        
-        const queryPromise = supabase
-          .from('user_profiles')
-          .select('*')
-          .eq('id', userId)
-          .single();
-        
-        const { data: profile, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
-        
-        console.log(`[DEBUG] Intento ${i + 1} de cargar perfil para userId=${userId}:`, { profile, error });
-        console.log(`[DEBUG] Consulta completada para intento ${i + 1}`);
-        
-        if (profile) {
-          console.log('[DEBUG] Perfil encontrado, retornando');
-          return { profile };
-        }
-        
-        lastError = error;
-        
-        // Si es error 406 (no rows), no hay perfil, no seguir intentando
-        if (error && error.code === 'PGRST116') {
-          console.log('[DEBUG] Error 406 detectado - no hay perfil para este usuario');
-          return { profile: null, error };
-        }
-        
-        if (i < maxTries - 1) {
-          console.log(`[DEBUG] Esperando ${delayMs}ms antes del siguiente intento`);
-          await new Promise(res => setTimeout(res, delayMs));
-        }
-      } catch (error: any) {
-        console.error(`[DEBUG] Error en intento ${i + 1}:`, error);
-        lastError = error;
-        
-        if (i < maxTries - 1) {
-          console.log(`[DEBUG] Esperando ${delayMs}ms antes del siguiente intento`);
-          await new Promise(res => setTimeout(res, delayMs));
+        try {
+          console.log(`[DEBUG] Ejecutando consulta Supabase para intento ${i + 1}`);
+          
+          // Agregar timeout a la consulta
+          const timeoutPromise = new Promise((_, reject) => {
+            setTimeout(() => reject(new Error('Timeout en consulta Supabase')), 1500);
+          });
+          
+          const queryPromise = supabase
+            .from('user_profiles')
+            .select('*')
+            .eq('id', userId)
+            .single();
+          
+          const { data: profile, error } = await Promise.race([queryPromise, timeoutPromise]) as any;
+          
+          console.log(`[DEBUG] Intento ${i + 1} de cargar perfil para userId=${userId}:`, { profile, error });
+          console.log(`[DEBUG] Consulta completada para intento ${i + 1}`);
+          
+          if (profile) {
+            console.log('[DEBUG] Perfil encontrado, retornando');
+            return { profile };
+          }
+          
+          lastError = error;
+          
+          // Si es error 406 (no rows), no hay perfil, no seguir intentando
+          if (error && error.code === 'PGRST116') {
+            console.log('[DEBUG] Error 406 detectado - no hay perfil para este usuario');
+            return { profile: null, error };
+          }
+          
+          if (i < maxTries - 1) {
+            console.log(`[DEBUG] Esperando ${delayMs}ms antes del siguiente intento`);
+            await new Promise(res => setTimeout(res, delayMs));
+          }
+        } catch (error: any) {
+          console.error(`[DEBUG] Error en intento ${i + 1}:`, error);
+          lastError = error;
+          
+          if (i < maxTries - 1) {
+            console.log(`[DEBUG] Esperando ${delayMs}ms antes del siguiente intento`);
+            await new Promise(res => setTimeout(res, delayMs));
+          }
         }
       }
+      
+      console.warn('[DEBUG] No se pudo cargar el perfil tras reintentos:', lastError);
+      return { profile: null, error: lastError };
+    } finally {
+      setIsLoadingProfile(false);
     }
-    
-    console.warn('[DEBUG] No se pudo cargar el perfil tras reintentos:', lastError);
-    return { profile: null, error: lastError };
   };
 
   useEffect(() => {
@@ -106,15 +117,18 @@ export function useAuth() {
 
     const initAuth = async () => {
       try {
+        // Reducir el timeout para que sea más rápido
         timeoutId = setTimeout(() => {
           if (mounted) {
             setAuthState(prev => ({ ...prev, loading: false }));
             console.warn('[DEBUG] Timeout verificando autenticación.');
           }
-        }, 7000);
+        }, 3000); // Reducido de 5000 a 3000ms
+        
         console.log('[DEBUG] Llamando supabase.auth.getSession()...');
         const { data: { session }, error: sessionError } = await supabase.auth.getSession();
         console.log('[DEBUG] Resultado de getSession:', { session, sessionError });
+        
         if (sessionError) {
           if (mounted) {
             clearTimeout(timeoutId);
@@ -124,7 +138,9 @@ export function useAuth() {
           }
           return;
         }
+        
         if (!mounted) return;
+        
         if (session?.user) {
           console.log('[DEBUG] Sesión encontrada, intentando cargar perfil...');
           const { profile, error } = await fetchProfileWithRetry(session.user.id);
@@ -159,7 +175,9 @@ export function useAuth() {
         }
       }
     };
+    
     initAuth();
+    
     const { data: { subscription } } = supabase.auth.onAuthStateChange(async (event, session) => {
       if (!mounted) return;
       setAuthError(null);
@@ -217,6 +235,7 @@ export function useAuth() {
         }
       }
     });
+    
     return () => {
       mounted = false;
       if (timeoutId) clearTimeout(timeoutId);
@@ -387,13 +406,6 @@ export function useAuth() {
         });
 
       if (error) {
-        // Si el error es de username duplicado, devolver mensaje especial
-        if (error.message && error.message.toLowerCase().includes('duplicate key value') && error.message.toLowerCase().includes('username')) {
-          return {
-            success: false,
-            message: 'Ese nombre de usuario ya está ocupado, elige otro.'
-          };
-        }
         return {
           success: false,
           message: error.message || 'Error al configurar perfil'

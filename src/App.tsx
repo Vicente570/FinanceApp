@@ -6,6 +6,8 @@ import { LoadingScreen } from './components/Auth/LoadingScreen';
 import { Header } from './components/Layout/Header';
 import { Sidebar } from './components/Layout/Sidebar';
 import { SectionRenderer } from './components/Sections/SectionRenderer';
+import { ProfileSetupForm } from './components/Auth/ProfileSetupForm';
+import { ResetPasswordForm } from './components/Auth/ResetPasswordForm';
 
 // Importar utilidades administrativas en desarrollo
 if (import.meta.env.DEV) {
@@ -16,52 +18,72 @@ console.log('VITE_SUPABASE_URL:', import.meta.env.VITE_SUPABASE_URL);
 console.log('VITE_SUPABASE_ANON_KEY:', import.meta.env.VITE_SUPABASE_ANON_KEY);
 
 function AppContent() {
-  const { user, profile, loading, signOut } = useAuth();
+  const { user, profile, loading, signOut, needsProfileSetup } = useAuth();
   const [loggingOut, setLoggingOut] = React.useState(false);
   const [isRegistering, setIsRegistering] = React.useState(false);
   const [isActive, setIsActive] = React.useState(true);
 
-  React.useEffect(() => {
-    // Solo hacer logout si el usuario no tiene perfil, no está en proceso de carga, y no está registrándose
-    if (user && !profile && !loading && !isRegistering) {
-      console.log('[DEBUG] Usuario sin perfil detectado en App, haciendo logout...');
-      setLoggingOut(true);
-      setProfileSuccessMessage('Tu cuenta fue creada exitosamente. Por favor, inicia sesión.');
-      signOut().finally(() => setLoggingOut(false));
-    }
-  }, [user, profile, loading, signOut, isRegistering]);
+  // Verificar si estamos en la página de reset-password
+  const isResetPasswordPage = window.location.pathname === '/reset-password' || 
+                             window.location.search.includes('token=');
+
+  // Eliminar el useEffect que hace signOut automático
 
   // Manejar visibilidad de la página para evitar problemas de carga
   React.useEffect(() => {
     const handleVisibilityChange = () => {
-      setIsActive(!document.hidden);
+      const isVisible = !document.hidden;
+      setIsActive(isVisible);
+      
+      // Si la página se vuelve visible y tenemos usuario pero no perfil, 
+      // intentar recargar el perfil en lugar de hacer logout
+      if (isVisible && user && !profile && !loading) {
+        console.log('[DEBUG] Página vuelve visible, verificando sesión...');
+        // La sesión se verificará automáticamente por onAuthStateChange
+      }
     };
-
+    
     const handleFocus = () => {
       setIsActive(true);
     };
-
+    
     const handleBlur = () => {
       setIsActive(false);
     };
-
+    
+    // Agregar listener para cuando la página se vuelve visible
     document.addEventListener('visibilitychange', handleVisibilityChange);
     window.addEventListener('focus', handleFocus);
     window.addEventListener('blur', handleBlur);
-
+    
     return () => {
       document.removeEventListener('visibilitychange', handleVisibilityChange);
       window.removeEventListener('focus', handleFocus);
       window.removeEventListener('blur', handleBlur);
     };
-  }, []);
+  }, [user, profile, loading]);
 
   console.log('🔍 App render state:', { 
     hasUser: !!user, 
     hasProfile: !!profile, 
     loading,
-    isActive
+    isActive,
+    needsProfileSetup,
+    isResetPasswordPage
   });
+
+  // Si estamos en la página de reset-password, mostrar el formulario
+  if (isResetPasswordPage) {
+    console.log('🔑 Showing reset password form');
+    return <ResetPasswordForm language="es" />;
+  }
+
+  // Si hay un usuario autenticado pero no tenemos perfil aún, mostrar loading
+  // Esto evita el "flash" del formulario de login durante cambios de pestaña
+  if (user && !profile && !needsProfileSetup) {
+    console.log('⏳ User authenticated but profile not loaded yet, showing loading screen');
+    return <LoadingScreen language="es" />;
+  }
 
   if (loading || loggingOut) {
     console.log('⏳ Showing loading screen');
@@ -73,8 +95,15 @@ function AppContent() {
     return <AuthForm language="es" onRegisteringChange={setIsRegistering} />;
   }
 
+  if (needsProfileSetup) {
+    console.log('👤 User needs profile setup, showing ProfileSetupForm');
+    // Mostrar el formulario de configuración de perfil si el usuario está autenticado pero no tiene perfil
+    return <ProfileSetupForm language="es" />;
+  }
+
   if (!profile) {
-    // Nunca mostrar mensaje de error, solo forzar logout
+    console.log('❌ No profile and no setup needed, showing nothing');
+    // Si por alguna razón no hay perfil y tampoco se requiere setup, no mostrar nada
     return null;
   }
 

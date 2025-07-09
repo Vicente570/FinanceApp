@@ -1,6 +1,7 @@
 import React, { useState, useEffect } from 'react';
 import { X } from 'lucide-react';
 import { Button } from './Button';
+import { AppleSelect } from './AppleSelect';
 
 interface EditModalProps {
   isOpen: boolean;
@@ -16,6 +17,7 @@ interface EditModalProps {
     options?: { value: string; label: string }[];
     required?: boolean;
   }[];
+  hideDeleteButton?: boolean;
 }
 
 export function EditModal({ isOpen, onClose, onSave, onDelete, title, data, fields }: EditModalProps) {
@@ -27,8 +29,7 @@ export function EditModal({ isOpen, onClose, onSave, onDelete, title, data, fiel
 
   if (!isOpen) return null;
 
-  const handleSubmit = (e: React.FormEvent) => {
-    e.preventDefault();
+  const handleSubmit = () => {
     onSave(formData);
     onClose();
   };
@@ -69,18 +70,13 @@ export function EditModal({ isOpen, onClose, onSave, onDelete, title, data, fiel
               </label>
               
               {field.type === 'select' ? (
-                <select
+                <AppleSelect
                   value={formData[field.key] || ''}
-                  onChange={(e) => handleChange(field.key, e.target.value)}
-                  className="w-full border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                  required={field.required}
-                >
-                  {field.options?.map((option) => (
-                    <option key={option.value} value={option.value}>
-                      {option.label}
-                    </option>
-                  ))}
-                </select>
+                  onChange={(value) => handleChange(field.key, value)}
+                  options={field.options || []}
+                  placeholder={field.label}
+                  className="w-full"
+                />
               ) : (
                 <input
                   type={field.type}
@@ -97,11 +93,10 @@ export function EditModal({ isOpen, onClose, onSave, onDelete, title, data, fiel
           ))}
 
           <div className="flex space-x-3 pt-4">
-            <Button type="submit" className="flex-1">
+            <Button onClick={handleSubmit} className="flex-1">
               Guardar Cambios
             </Button>
             <Button
-              type="button"
               variant="ghost"
               onClick={onClose}
               className="flex-1"
@@ -110,7 +105,6 @@ export function EditModal({ isOpen, onClose, onSave, onDelete, title, data, fiel
             </Button>
             {onDelete && (
               <Button
-                type="button"
                 variant="outline"
                 onClick={handleDelete}
                 className="px-4 text-red-600 border-red-300 hover:bg-red-50"

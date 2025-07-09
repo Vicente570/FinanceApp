@@ -3,7 +3,9 @@ import { useApp } from '../../../context/AppContext';
 import { Card } from '../../Common/Card';
 import { Button } from '../../Common/Button';
 import { EditModal } from '../../Common/EditModal';
-import { Plus, Wallet, TrendingUp, TrendingDown, Edit } from 'lucide-react';
+import { Plus, Wallet, TrendingUp, TrendingDown, Edit, Info, Shield, X } from 'lucide-react';
+import { AppleSelect } from '../../Common/AppleSelect';
+import { formatCurrency } from '../../../utils/currencyUtils';
 
 const accountTypes = [
   { value: 'checking', label: 'Cuenta Corriente' },
@@ -12,12 +14,24 @@ const accountTypes = [
 ];
 
 export function AccountsAndBudgets() {
-  const { state, addAccount, addBudget, updateAccount, updateBudget, deleteAccount, deleteBudget } = useApp();
+  const { state, addAccount, addBudget, updateAccount, updateBudget, deleteAccount, deleteBudget, getEmergencyFundValue } = useApp();
   const { accounts, budgets } = state;
+  
+  // Función helper para formatear monedas usando la utilidad centralizada
+  const formatCurrencyWithState = (amount: number) => {
+    return formatCurrency(amount, {
+      language: state.language as 'es' | 'en',
+      currency: state.currency
+    });
+  };
+  
+  // Obtener el valor del fondo de emergencia
+  const emergencyFundValue = getEmergencyFundValue();
   const [showAddBudget, setShowAddBudget] = useState(false);
   const [showAddAccount, setShowAddAccount] = useState(false);
   const [editingAccount, setEditingAccount] = useState<any>(null);
   const [editingBudget, setEditingBudget] = useState<any>(null);
+  const [showEmergencyFundInfo, setShowEmergencyFundInfo] = useState(false);
   const [newBudget, setNewBudget] = useState({ category: '', allocated: 0 });
   const [newAccount, setNewAccount] = useState({ name: '', type: 'checking', balance: 0 });
 
@@ -87,15 +101,13 @@ export function AccountsAndBudgets() {
                   onChange={(e) => setNewAccount({ ...newAccount, name: e.target.value })}
                   className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
                 />
-                <select
+                <AppleSelect
                   value={newAccount.type}
-                  onChange={(e) => setNewAccount({ ...newAccount, type: e.target.value })}
-                  className="border border-gray-300 rounded-lg px-3 py-2 focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
-                >
-                  {accountTypes.map(type => (
-                    <option key={type.value} value={type.value}>{type.label}</option>
-                  ))}
-                </select>
+                  onChange={val => setNewAccount({ ...newAccount, type: val })}
+                  options={accountTypes}
+                  placeholder="Tipo de cuenta"
+                  className="w-full px-3 py-2"
+                />
                 <input
                   type="number"
                   placeholder="Saldo inicial"
@@ -121,35 +133,69 @@ export function AccountsAndBudgets() {
         )}
         
         <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
-          {accounts.map((account) => (
+          {accounts.map((account) => {
+            // Si es una cuenta de ahorro, mostrar el valor del fondo de emergencia
+            const isEmergencyFundAccount = account.type === 'savings';
+            const displayValue = isEmergencyFundAccount ? emergencyFundValue : account.balance;
+            
+            return (
             <Card key={account.id}>
               <div className="flex items-center justify-between">
                 <div className="flex items-center space-x-3">
                   <div>
-                    <h3 className="font-medium text-gray-900">{account.name}</h3>
-                    <p className="text-sm text-gray-600 capitalize">{accountTypes.find(t => t.value === account.type)?.label}</p>
+                    <div className="flex items-center space-x-2">
+                      <h3 className="font-medium text-gray-900">{account.name}</h3>
+                      {isEmergencyFundAccount && (
+                        <button
+                          onClick={() => setShowEmergencyFundInfo(true)}
+                          className="p-1 hover:bg-gray-100 rounded-full transition-colors"
+                          title={state.language === 'es' 
+                            ? 'Información sobre el Fondo de Emergencia'
+                            : 'Emergency Fund Information'
+                          }
+                        >
+                          <Info className="w-4 h-4 text-gray-500" />
+                        </button>
+                      )}
+                    </div>
+                    <p className="text-sm text-gray-600 capitalize">
+                      {accountTypes.find(t => t.value === account.type)?.label}
+                      {isEmergencyFundAccount && (
+                        <span className="text-xs text-gray-500 ml-1">
+                          ({state.language === 'es' ? 'Solo lectura' : 'Read-only'})
+                        </span>
+                      )}
+                    </p>
                   </div>
                 </div>
                 <div className="flex items-center space-x-2">
                   <Wallet className="w-6 h-6 text-blue-500" />
-                  <button
-                    onClick={() => setEditingAccount(account)}
-                    className="p-1 hover:bg-gray-100 rounded transition-colors"
-                  >
-                    <Edit className="w-4 h-4 text-gray-500" />
-                  </button>
+                  {!isEmergencyFundAccount && (
+                    <button
+                      onClick={() => setEditingAccount(account)}
+                      className="p-1 hover:bg-gray-100 rounded transition-colors"
+                    >
+                      <Edit className="w-4 h-4 text-gray-500" />
+                    </button>
+                  )}
                 </div>
               </div>
               <div className="mt-4">
-                <p className={`text-xl font-bold ${account.balance >= 0 ? 'text-green-600' : 'text-red-600'}`}>
-                  ${Math.abs(account.balance).toLocaleString()}
+                <p className={`text-xl font-bold ${displayValue >= 0 ? 'text-green-600' : 'text-red-600'}`}>
+                  {formatCurrencyWithState(Math.abs(displayValue))}
                 </p>
-                {account.balance < 0 && (
+                {displayValue < 0 && (
                   <p className="text-xs text-red-500">Saldo deudor</p>
+                )}
+                {isEmergencyFundAccount && (
+                  <p className="text-xs text-gray-500 mt-1">
+                    {state.language === 'es' ? 'Sincronizado automáticamente' : 'Automatically synced'}
+                  </p>
                 )}
               </div>
             </Card>
-          ))}
+          );
+        })}
         </div>
       </div>
 
@@ -216,13 +262,13 @@ export function AccountsAndBudgets() {
                     <div className="flex items-center space-x-2">
                       <div className="text-right">
                         <p className="text-sm text-gray-600">
-                          ${budget.spent.toLocaleString()} / ${budget.allocated.toLocaleString()}
+                          {formatCurrencyWithState(budget.spent)} / {formatCurrencyWithState(budget.allocated)}
                         </p>
                         <p className={`text-sm ${remaining >= 0 ? 'text-green-600' : 'text-red-600'}`}>
                           {remaining >= 0 ? (
-                            <><TrendingUp className="w-4 h-4 inline mr-1" />Disponible: ${remaining.toLocaleString()}</>
+                            <><TrendingUp className="w-4 h-4 inline mr-1" />Disponible: {formatCurrencyWithState(remaining)}</>
                           ) : (
-                            <><TrendingDown className="w-4 h-4 inline mr-1" />Excedido: ${Math.abs(remaining).toLocaleString()}</>
+                            <><TrendingDown className="w-4 h-4 inline mr-1" />Excedido: {formatCurrencyWithState(Math.abs(remaining))}</>
                           )}
                         </p>
                       </div>
@@ -275,6 +321,98 @@ export function AccountsAndBudgets() {
         data={editingBudget || {}}
         fields={budgetEditFields}
       />
+
+      {/* Modal de información del Fondo de Emergencia */}
+      {showEmergencyFundInfo && (
+        <div className="fixed inset-0 bg-black bg-opacity-50 flex items-center justify-center z-50">
+          <div className="bg-white rounded-xl shadow-xl max-w-md w-full mx-4">
+            <div className="flex items-center justify-between p-6 border-b border-gray-200">
+              <div className="flex items-center space-x-3">
+                <Shield className="w-6 h-6 text-red-500" />
+                <h2 className="text-xl font-semibold text-gray-900">
+                  {state.language === 'es' ? 'Fondo de Emergencia' : 'Emergency Fund'}
+                </h2>
+              </div>
+              <button
+                onClick={() => setShowEmergencyFundInfo(false)}
+                className="p-2 hover:bg-gray-100 rounded-lg transition-colors"
+              >
+                <X className="w-5 h-5 text-gray-500" />
+              </button>
+            </div>
+            
+            <div className="p-6 space-y-4">
+              <div className="bg-red-50 border border-red-200 rounded-lg p-4">
+                <h3 className="font-medium text-red-900 mb-2">
+                  {state.language === 'es' ? '¿Qué es el Fondo de Emergencia?' : 'What is the Emergency Fund?'}
+                </h3>
+                <p className="text-sm text-red-800">
+                  {state.language === 'es' 
+                    ? 'El Fondo de Emergencia es dinero que debe estar disponible en liquidez para cubrir gastos imprevistos como emergencias médicas, reparaciones urgentes o pérdida de empleo.'
+                    : 'The Emergency Fund is money that should be available in liquidity to cover unexpected expenses such as medical emergencies, urgent repairs, or job loss.'
+                  }
+                </p>
+              </div>
+              
+              <div className="bg-blue-50 border border-blue-200 rounded-lg p-4">
+                <h3 className="font-medium text-blue-900 mb-2">
+                  {state.language === 'es' ? '¿Cómo funciona?' : 'How does it work?'}
+                </h3>
+                <ul className="text-sm text-blue-800 space-y-2">
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>
+                      {state.language === 'es' 
+                        ? 'Se calcula automáticamente sumando todas tus cuentas de ahorro'
+                        : 'It is automatically calculated by adding all your savings accounts'
+                      }
+                    </span>
+                  </li>
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>
+                      {state.language === 'es' 
+                        ? 'Se sincroniza con el grupo "Fondo de Emergencia" en la sección de Activos'
+                        : 'It syncs with the "Emergency Fund" group in the Assets section'
+                      }
+                    </span>
+                  </li>
+                  <li className="flex items-start space-x-2">
+                    <span className="text-blue-600 mt-1">•</span>
+                    <span>
+                      {state.language === 'es' 
+                        ? 'Este valor es de solo lectura y no se puede modificar directamente'
+                        : 'This value is read-only and cannot be modified directly'
+                      }
+                    </span>
+                  </li>
+                </ul>
+              </div>
+              
+              <div className="bg-green-50 border border-green-200 rounded-lg p-4">
+                <h3 className="font-medium text-green-900 mb-2">
+                  {state.language === 'es' ? '¿Cómo modificarlo?' : 'How to modify it?'}
+                </h3>
+                <p className="text-sm text-green-800">
+                  {state.language === 'es' 
+                    ? 'Para cambiar el valor del fondo de emergencia, ve a la sección de Activos > Fondo de Emergencia, o modifica tus cuentas de ahorro en esta sección.'
+                    : 'To change the emergency fund value, go to Assets section > Emergency Fund, or modify your savings accounts in this section.'
+                  }
+                </p>
+              </div>
+              
+              <div className="flex justify-end">
+                <Button
+                  onClick={() => setShowEmergencyFundInfo(false)}
+                  variant="outline"
+                >
+                  {state.language === 'es' ? 'Entendido' : 'Got it'}
+                </Button>
+              </div>
+            </div>
+          </div>
+        </div>
+      )}
     </div>
   );
 }

@@ -3,10 +3,19 @@ import { useApp } from '../../../context/AppContext';
 import { Card } from '../../Common/Card';
 import { Button } from '../../Common/Button';
 import { Wallet, CreditCard, PiggyBank, Plus } from 'lucide-react';
+import { formatCurrency } from '../../../utils/currencyUtils';
 
 export function AccountsOverview() {
   const { state, navigate } = useApp();
   const { accounts, budgets, expenses } = state;
+
+  // Función helper para formatear monedas usando la utilidad centralizada
+  const formatCurrencyWithState = (amount: number) => {
+    return formatCurrency(amount, {
+      language: state.language as 'es' | 'en',
+      currency: state.currency
+    });
+  };
 
   const subsections = [
     { 
@@ -44,7 +53,7 @@ export function AccountsOverview() {
                 {state.language === 'es' ? 'Balance Total' : 'Total Balance'}
               </p>
               <p className="text-2xl font-bold text-gray-900">
-                ${totalBalance.toLocaleString()}
+                {formatCurrencyWithState(totalBalance)}
               </p>
             </div>
             <Wallet className="w-8 h-8 text-blue-500" />
@@ -58,10 +67,10 @@ export function AccountsOverview() {
                 {state.language === 'es' ? 'Presupuesto Total' : 'Total Budget'}
               </p>
               <p className="text-2xl font-bold text-gray-900">
-                ${totalBudget.toLocaleString()}
+                {formatCurrencyWithState(totalBudget)}
               </p>
               <p className="text-xs text-gray-500">
-                {state.language === 'es' ? 'Gastado: ' : 'Spent: '}${totalSpent.toLocaleString()}
+                {state.language === 'es' ? 'Gastado: ' : 'Spent: '}{formatCurrencyWithState(totalSpent)}
               </p>
             </div>
             <CreditCard className="w-8 h-8 text-emerald-500" />
@@ -75,7 +84,7 @@ export function AccountsOverview() {
                 {state.language === 'es' ? 'Gastos este mes' : 'This month expenses'}
               </p>
               <p className="text-2xl font-bold text-gray-900">
-                ${expenses.slice(0, 5).reduce((sum, expense) => sum + expense.amount, 0).toLocaleString()}
+                {formatCurrencyWithState(expenses.slice(0, 5).reduce((sum, expense) => sum + expense.amount, 0))}
               </p>
             </div>
             <PiggyBank className="w-8 h-8 text-purple-500" />
