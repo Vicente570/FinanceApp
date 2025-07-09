@@ -134,18 +134,11 @@ export function Settings() {
         : 'Are you sure you want to delete all your data? This action cannot be undone.'
     );
     if (!confirmed) return;
+    
     try {
-      // Eliminar todos los datos del usuario en user_app_data
-      const { error } = await supabase
-        .from('user_app_data')
-        .delete()
-        .eq('user_id', user.id);
-      if (error) throw error;
-      // Limpiar el estado local
-      resetAppData();
+      // Usar la función mejorada resetAppData que limpia tanto local como Supabase
+      await resetAppData();
       setResetMessage(state.language === 'es' ? '¡Datos restaurados a fábrica!' : 'Data reset to factory!');
-      // Recargar datos en la app
-      await loadData();
       setTimeout(() => setResetMessage(''), 3000);
     } catch (err) {
       setResetMessage(state.language === 'es' ? 'Error al restaurar datos.' : 'Error resetting data.');

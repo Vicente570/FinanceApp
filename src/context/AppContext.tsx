@@ -3,6 +3,7 @@ import { NavigationState, Account, Budget, Expense, Asset, AssetGroup, Debt, Int
 import { exchangeRateApiService } from '../services/exchangeRateApi';
 import { useSupabaseData } from '../hooks/useSupabaseData';
 import { useAuth } from '../hooks/useAuth';
+import { supabase } from '../lib/supabase';
 
 interface AppState {
   navigation: NavigationState;
@@ -856,8 +857,11 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }, 100);
   }, [getEmergencyFundValue]);
 
-  // Función para resetear todos los datos locales
-  const resetAppData = () => {
+  // Función para resetear todos los datos locales y de Supabase
+  const resetAppData = async () => {
+    console.log('🗑️ Resetting all app data...');
+    
+    // Resetear estado local
     setState(prev => ({
       navigation: prev.navigation,
       accounts: [],
@@ -872,6 +876,45 @@ export function AppProvider({ children }: { children: ReactNode }) {
       theme: prev.theme,
       language: prev.language
     }));
+    
+    // Limpiar datos de Supabase si el usuario está autenticado
+    if (isAuthenticated && user) {
+      try {
+        console.log('🗑️ Clearing data from Supabase for user:', user.id);
+        
+        // Eliminar todos los datos del usuario de Supabase
+        const { error } = await supabase
+          .from('user_app_data')
+          .delete()
+          .eq('user_id', user.id);
+        
+        if (error) {
+          console.error('❌ Error clearing data from Supabase:', error);
+        } else {
+          console.log('✅ Data cleared from Supabase successfully');
+          
+          // Mostrar notificación de éxito
+          const notification = document.createElement('div');
+          notification.className = 'fixed top-4 right-4 bg-green-500 text-white px-4 py-2 rounded-lg shadow-lg z-50 transition-all duration-300';
+          notification.textContent = '✓ Todos los datos han sido eliminados';
+          document.body.appendChild(notification);
+          
+          setTimeout(() => {
+            notification.style.opacity = '0';
+            setTimeout(() => {
+              if (document.body.contains(notification)) {
+                document.body.removeChild(notification);
+              }
+            }, 300);
+          }, 3000);
+        }
+      } catch (error) {
+        console.error('❌ Error clearing data:', error);
+      }
+    }
+    
+    // Resetear el flag de datos cargados
+    setDataLoaded(false);
   };
 
   const saveData = async () => {
