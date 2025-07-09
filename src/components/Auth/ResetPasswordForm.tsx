@@ -174,7 +174,7 @@ export function ResetPasswordForm({ language }: ResetPasswordFormProps) {
         </div>
 
         {/* Mensaje de advertencia */}
-        <div className="mb-6 p-4 rounded-lg text-center font-semibold border bg-yellow-100 text-yellow-800 border-yellow-300 animate-pulse" role="alert" aria-live="polite">
+        <div className="mb-6 p-4 rounded-lg text-center font-semibold border bg-yellow-100 text-yellow-800 border-yellow-300" role="alert" aria-live="polite">
           {language === 'es'
             ? '⚠️ El sistema de restablecimiento de contraseña está temporalmente inhabilitado. Por favor, guarda tu contraseña actual, ya que no se puede restablecer en este momento.'
             : '⚠️ The password reset system is temporarily disabled. Please keep your current password safe, as it cannot be reset at this time.'}
