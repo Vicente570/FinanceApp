@@ -69,25 +69,36 @@ export function useSupabaseData() {
 
   // Cargar todos los datos de la aplicación
   const loadAllAppData = useCallback(async (): Promise<Partial<AppData> | null> => {
-    if (!user || !isAuthenticated) return null;
+    if (!user || !isAuthenticated) {
+      console.log('❌ Cannot load data: user not authenticated', { user: !!user, isAuthenticated });
+      return null;
+    }
 
     try {
+      console.log('🔍 Loading all app data for user:', user.id);
       const { data, error } = await supabase
         .from('user_app_data')
         .select('data_type, data')
         .eq('user_id', user.id);
 
-      if (error) throw error;
+      if (error) {
+        console.error('❌ Error loading app data:', error);
+        throw error;
+      }
 
+      console.log('📊 Raw data from Supabase:', data);
+      
       const appData: Partial<AppData> = {};
       
       data?.forEach(item => {
         appData[item.data_type as keyof AppData] = item.data;
+        console.log(`📋 Loaded ${item.data_type}:`, item.data);
       });
 
+      console.log('✅ Final app data object:', appData);
       return appData;
     } catch (error: any) {
-      console.error('Error loading app data:', error);
+      console.error('❌ Error loading app data:', error);
       return null;
     }
   }, [user, isAuthenticated]);

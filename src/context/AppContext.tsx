@@ -134,11 +134,25 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Cargar datos cuando el usuario se autentica
   useEffect(() => {
     if (isAuthenticated && !dataLoaded) {
-      console.log('🔄 User authenticated, loading data...');
+      console.log('🔄 User authenticated, loading data...', { userId: user?.id });
       loadData();
     }
-  }, [isAuthenticated, dataLoaded]);
+  }, [isAuthenticated, dataLoaded, user?.id]);
 
+  // Forzar recarga de datos cuando cambia el usuario
+  useEffect(() => {
+    if (user?.id) {
+      console.log('👤 User changed, resetting data and reloading...', { userId: user.id });
+      setDataLoaded(false);
+      // Pequeño delay para asegurar que el estado se actualice
+      setTimeout(() => {
+        if (isAuthenticated) {
+          console.log('🔄 Forcing data reload for new user...');
+          loadData();
+        }
+      }, 100);
+    }
+  }, [user?.id]);
 
 
   // Guardar automáticamente cuando cambien los datos importantes
@@ -760,7 +774,6 @@ export function AppProvider({ children }: { children: ReactNode }) {
   // Flag para evitar ejecuciones simultáneas de syncEmergencyFund
   const isSyncingRef = useRef(false);
 
-  // Función para sincronizar el fondo de emergencia
   // Función para limpiar activos duplicados de emergencia
   const cleanDuplicateEmergencyAssets = useCallback(() => {
     setState(prev => {
@@ -917,10 +930,12 @@ export function AppProvider({ children }: { children: ReactNode }) {
     }
 
     try {
-      console.log('📥 Loading data from Supabase...');
+      console.log('📥 Loading data from Supabase for user:', user?.id);
       const loadedData = await loadAllAppData();
       
-      if (loadedData) {
+      console.log('📋 Raw loaded data:', loadedData);
+      
+      if (loadedData && Object.keys(loadedData).length > 0) {
         // Limpiar activos duplicados de emergencia antes de cargar
         let cleanedAssets = loadedData.assets || [];
         const emergencyAssets = cleanedAssets.filter((asset: any) => asset.groupId === 'emergency-fund');
@@ -934,32 +949,44 @@ export function AppProvider({ children }: { children: ReactNode }) {
           );
         }
         
-        setState(prev => ({
-          ...prev,
+        const newState = {
+          ...state,
           ...loadedData,
           assets: cleanedAssets,
           // Asegurar que todos los campos existen
-          assetGroups: loadedData.assetGroups || prev.assetGroups,
+          assetGroups: loadedData.assetGroups || state.assetGroups,
           interpersonalDebts: (loadedData.interpersonalDebts || []).map((debt: any) => ({
             ...debt,
             isSettled: debt.isSettled || false
           })),
-          theme: (loadedData.theme as 'light' | 'dark' | 'auto') || prev.theme,
-          language: (loadedData.language as 'es' | 'en') || prev.language,
-          navigation: prev.navigation // Mantener navegación actual
-        }));
+          theme: (loadedData.theme as 'light' | 'dark' | 'auto') || state.theme,
+          language: (loadedData.language as 'es' | 'en') || state.language,
+          navigation: state.navigation // Mantener navegación actual
+        };
         
-        console.log('✅ Data loaded from Supabase successfully');
+        console.log('✅ Setting new state with loaded data:', {
+          accountsCount: newState.accounts.length,
+          expensesCount: newState.expenses.length,
+          assetsCount: newState.assets.length,
+          budgetsCount: newState.budgets.length,
+          debtsCount: newState.debts.length,
+          propertiesCount: newState.properties.length,
+          interpersonalDebtsCount: newState.interpersonalDebts.length
+        });
+        
+        setState(newState);
         
         // Limpiar activos duplicados después de cargar
         setTimeout(() => cleanDuplicateEmergencyAssets(), 100);
       } else {
-        console.log('📋 No data found in Supabase, using initial state');
+        console.log('📋 No data found in Supabase, keeping initial state');
+        // Mantener el estado inicial pero marcar como cargado
       }
       
       setDataLoaded(true);
+      console.log('✅ Data loading completed');
     } catch (error) {
-      console.error('Error loading data:', error);
+      console.error('❌ Error loading data:', error);
       setDataLoaded(true);
     }
   };
