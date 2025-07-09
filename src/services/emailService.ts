@@ -1,17 +1,18 @@
 import { Resend } from 'resend';
 
-// Debug: Log the API key (solo para debug)
-console.log('[DEBUG] Resend API Key:', import.meta.env.VITE_RESEND_API_KEY ? 'Present' : 'Missing');
-console.log('[DEBUG] All env vars:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')));
-console.log('[DEBUG] Full env object:', import.meta.env);
-console.log('[DEBUG] VITE_RESEND_API_KEY value:', import.meta.env.VITE_RESEND_API_KEY);
-console.log('[DEBUG] All VITE_ variables:');
-Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')).forEach(key => {
-  console.log(`  ${key}: ${import.meta.env[key] ? 'Present' : 'Missing'}`);
-});
+// Sistema de emails temporalmente deshabilitado por problemas con Vercel
+// TODO: Rehabilitar cuando se resuelva el problema de variables de entorno
+console.log('[INFO] Email system temporarily disabled due to Vercel environment variable issues');
 
-// Inicializar Resend (necesitarás una API key)
-const resend = new Resend(import.meta.env.VITE_RESEND_API_KEY);
+// Mock Resend para evitar errores
+const resend = {
+  emails: {
+    send: async () => {
+      console.log('[INFO] Email sending disabled - would send email in production');
+      return { data: null, error: null };
+    }
+  }
+};
 
 export interface EmailData {
   to: string;
@@ -69,12 +70,7 @@ export class EmailService {
         </div>
       `;
 
-      const { data, error } = await resend.emails.send({
-        from: 'FinanceApp <onboarding@resend.dev>',
-        to: [email],
-        subject: subject,
-        html: html,
-      });
+      const { data, error } = await resend.emails.send();
 
       if (error) {
         console.error('[DEBUG] Error enviando email con Resend:', error);
@@ -134,12 +130,7 @@ export class EmailService {
         </div>
       `;
 
-      const { data, error } = await resend.emails.send({
-        from: 'FinanceApp <onboarding@resend.dev>',
-        to: [email],
-        subject: subject,
-        html: html,
-      });
+      const { data, error } = await resend.emails.send();
 
       if (error) {
         console.error('[DEBUG] Error enviando email de bienvenida:', error);
