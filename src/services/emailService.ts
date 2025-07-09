@@ -4,6 +4,11 @@ import { Resend } from 'resend';
 console.log('[DEBUG] Resend API Key:', import.meta.env.VITE_RESEND_API_KEY ? 'Present' : 'Missing');
 console.log('[DEBUG] All env vars:', Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')));
 console.log('[DEBUG] Full env object:', import.meta.env);
+console.log('[DEBUG] VITE_RESEND_API_KEY value:', import.meta.env.VITE_RESEND_API_KEY);
+console.log('[DEBUG] All VITE_ variables:');
+Object.keys(import.meta.env).filter(key => key.startsWith('VITE_')).forEach(key => {
+  console.log(`  ${key}: ${import.meta.env[key] ? 'Present' : 'Missing'}`);
+});
 
 // Inicializar Resend (necesitarás una API key)
 const resend = new Resend(import.meta.env.VITE_RESEND_API_KEY);
